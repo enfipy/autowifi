@@ -47,6 +47,9 @@ implement real credential delivery before the secure nonsecret ping gate.
 
 ### S0 — Freeze identifiers and deployment baseline
 
+Status: **complete**. The source of truth is `config/autowifi.json`; generated
+Swift and Python constants are checked by `scripts/verify.sh`.
+
 Deliverables:
 
 - Choose one private 128-bit service UUID, credential-RX UUID, and status-TX
@@ -67,6 +70,10 @@ Acceptance:
 - No placeholder UUID or Apple sample dice UUID remains in a build target.
 
 ### S1 — Make the wire contract executable on both platforms
+
+Status: **complete**. Shared fixtures are under `fixtures/`; Swift and Python
+tests consume them and verify encoding, validation, framing, and status
+transitions.
 
 Deliverables:
 
@@ -113,17 +120,16 @@ codesign -d --entitlements :- '<path-to-built-extension>'
 
 ### P1 — Confirm the Spark's actual Bluetooth and NetworkManager capabilities
 
-Run this on the target Spark while retaining Ethernet or local-console access:
+Copy the `autowifi` folder to the target Spark and run the read-only collector
+while retaining Ethernet or local-console access:
 
 ```bash
-bluetoothctl show
-sudo btmgmt info
-busctl introspect org.bluez /org/bluez/hci0 org.bluez.GattManager1
-busctl introspect org.bluez /org/bluez/hci0 org.bluez.LEAdvertisingManager1
-nmcli general status
-nmcli device status
-python3 -c 'import dbus; print("dbus-python available")'
+sudo ./linux/preflight.sh | tee spark-preflight.txt
 ```
+
+The script makes no changes. Review `spark-preflight.txt` before sharing it;
+the NetworkManager section contains device names and states but intentionally
+does not request Wi-Fi SSIDs or addresses.
 
 Deliverables:
 
@@ -517,4 +523,3 @@ Acceptance:
   credential payload.
 - Prepare TestFlight/App Store distribution only after confirming entitlement
   and EU customer behavior with the intended distribution profile.
-

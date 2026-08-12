@@ -40,10 +40,17 @@ artifacts are:
 The execution-ordered build backlog is in
 [`IMPLEMENTATION_TASKS.md`](IMPLEMENTATION_TASKS.md).
 
-Run the portable tests with:
+The next hardware gate is a read-only Spark inventory:
 
 ```bash
-python3 -m unittest discover -s autowifi/linux -p 'test_*.py'
+cd autowifi
+sudo ./linux/preflight.sh | tee spark-preflight.txt
+```
+
+Run all portable tests, generated-file checks, and iOS SDK type-checking with:
+
+```bash
+autowifi/scripts/verify.sh
 ```
 
 ## Honest size estimate

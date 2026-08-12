@@ -2,97 +2,63 @@ import Foundation
 import AccessorySetupKit
 import WiFiInfrastructure
 
-/// Stable, accessory-owned wire DTO. Do not expose Apple's Codable layout as
-/// the protocol: Apple does not document that JSON representation as a wire ABI.
 @available(iOS 26.2, *)
-struct AutoWiFiCredential: Codable, Equatable {
-    static let maximumPayloadBytes = 65_536
+enum AutoWiFiNetworkMappingError: Error {
+    case unsupportedSecurity
+    case unsupportedCredential
+}
 
-    let version: Int
-    let type: String
-    let requestID: UUID
-    let ssid: Data
-    let hidden: Bool
-    let security: [String]
-    let credential: Credential
-
-    struct Credential: Codable, Equatable {
-        let kind: String
-        let password: String?
-    }
-
-    enum MappingError: Error {
-        case unsupportedSecurity
-        case unsupportedCredential
-        case payloadTooLarge
-    }
-
+@available(iOS 26.2, *)
+extension AutoWiFiCredentialMessage {
     init(network: WINetworkSharingProvider.Network, requestID: UUID = UUID()) throws {
-        let policies = try network.securityPolicy.map(Self.mapPolicy).sorted()
-        guard !policies.isEmpty else { throw MappingError.unsupportedSecurity }
-
+        let policies = try network.securityPolicy.map(Self.mapPolicy)
         let mappedCredential = try Self.mapCredential(network.credentials)
-
-        version = 1
-        type = "wifi-credential"
-        self.requestID = requestID
-        ssid = network.ssid.data
-        hidden = !network.isSSIDBroadcast
-        security = policies
-        credential = mappedCredential
+        try self.init(
+            requestID: requestID,
+            ssid: network.ssid.data,
+            hidden: !network.isSSIDBroadcast,
+            security: policies,
+            credential: mappedCredential
+        )
     }
 
     private static func mapPolicy(
         _ policy: WINetworkSharingProvider.Network.SecurityPolicy
-    ) throws -> String {
+    ) throws -> AutoWiFiSecurity {
         switch policy {
-        case .open: "open"
-        case .owe: "owe"
-        case .wpa2: "wpa2"
-        case .wpa3: "wpa3"
-        case .wep, .wpa: throw MappingError.unsupportedSecurity
-        @unknown default: throw MappingError.unsupportedSecurity
+        case .open: .open
+        case .owe: .owe
+        case .wpa2: .wpa2
+        case .wpa3: .wpa3
+        case .wep, .wpa: throw AutoWiFiNetworkMappingError.unsupportedSecurity
+        @unknown default: throw AutoWiFiNetworkMappingError.unsupportedSecurity
         }
     }
 
     private static func mapCredential(
         _ credentials: WINetworkSharingProvider.Network.Credentials
-    ) throws -> Credential {
+    ) throws -> AutoWiFiCredentialValue {
         if #available(iOS 26.4, *) {
             switch credentials {
             case .none:
-                return Credential(kind: "none", password: nil)
+                return AutoWiFiCredentialValue(kind: "none", password: nil)
             case .password(let password):
-                return Credential(kind: "password", password: password)
+                return AutoWiFiCredentialValue(kind: "password", password: password)
             case .enterprise:
-                throw MappingError.unsupportedCredential
+                throw AutoWiFiNetworkMappingError.unsupportedCredential
             @unknown default:
-                throw MappingError.unsupportedCredential
+                throw AutoWiFiNetworkMappingError.unsupportedCredential
             }
         } else {
             switch credentials {
             case .none:
-                return Credential(kind: "none", password: nil)
+                return AutoWiFiCredentialValue(kind: "none", password: nil)
             case .password(let password):
-                return Credential(kind: "password", password: password)
+                return AutoWiFiCredentialValue(kind: "password", password: password)
             default:
-                throw MappingError.unsupportedCredential
+                throw AutoWiFiNetworkMappingError.unsupportedCredential
             }
         }
-    }
-
-    func framed() throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        let payload = try encoder.encode(self)
-        guard payload.count <= Self.maximumPayloadBytes else {
-            throw MappingError.payloadTooLarge
-        }
-
-        var length = UInt32(payload.count).bigEndian
-        var result = withUnsafeBytes(of: &length) { Data($0) }
-        result.append(payload)
-        return result
     }
 }
 
@@ -129,10 +95,11 @@ final class MinimumNetworkEventForwarder {
                     // production state machine.
                     for network in event.networks {
                         do {
-                            let frame = try AutoWiFiCredential(network: network).framed()
+                            let message = try AutoWiFiCredentialMessage(network: network)
+                            let frame = try AutoWiFiFrameCodec.frame(message)
                             try await sendFrame(frame)
-                        } catch AutoWiFiCredential.MappingError.unsupportedSecurity,
-                                AutoWiFiCredential.MappingError.unsupportedCredential {
+                        } catch AutoWiFiNetworkMappingError.unsupportedSecurity,
+                                AutoWiFiNetworkMappingError.unsupportedCredential {
                             continue
                         }
                     }

@@ -1,8 +1,18 @@
 import base64
 import json
+from pathlib import Path
 import unittest
 
-from autowifi_protocol import FrameDecoder, NetworkCredential, ProtocolError, frame
+from autowifi_protocol import (
+    FrameDecoder,
+    NetworkCredential,
+    ProtocolError,
+    StatusMessage,
+    frame,
+)
+
+
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
 def payload(**changes):
@@ -35,6 +45,18 @@ class FrameDecoderTests(unittest.TestCase):
 
 
 class CredentialTests(unittest.TestCase):
+    def test_decodes_every_shared_credential_fixture(self):
+        for name in (
+            "credential-open.json",
+            "credential-owe.json",
+            "credential-wpa2.json",
+            "credential-wpa3.json",
+            "credential-binary-ssid.json",
+        ):
+            with self.subTest(name=name):
+                credential = NetworkCredential.from_payload((FIXTURES / name).read_bytes())
+                self.assertTrue(1 <= len(credential.ssid) <= 32)
+
     def test_maps_wpa2_wpa3_personal(self):
         credential = NetworkCredential.from_payload(payload())
         settings = credential.networkmanager_settings()
@@ -96,6 +118,57 @@ class CredentialTests(unittest.TestCase):
     def test_rejects_non_uuid_request_id(self):
         with self.assertRaisesRegex(ProtocolError, "UUID"):
             NetworkCredential.from_payload(payload(requestID="request-1"))
+
+    def test_rejects_shared_unsupported_security_fixture(self):
+        with self.assertRaisesRegex(ProtocolError, "security"):
+            NetworkCredential.from_payload(
+                (FIXTURES / "invalid-unsupported-security.json").read_bytes()
+            )
+
+
+class StatusTests(unittest.TestCase):
+    def test_decodes_shared_status_fixtures(self):
+        received = StatusMessage.from_payload(
+            (FIXTURES / "status-received.json").read_bytes()
+        )
+        failed = StatusMessage.from_payload((FIXTURES / "status-failed.json").read_bytes())
+        self.assertEqual(received.state, "received")
+        self.assertEqual(failed.error, "network-activation-failed")
+
+    def test_python_encoding_matches_shared_fixture(self):
+        status = StatusMessage(
+            request_id="fe39d9c7-fab9-4a51-9d48-6c26684d38fe",
+            state="failed",
+            error="network-activation-failed",
+        )
+        expected = (FIXTURES / "status-failed.json").read_bytes().strip()
+        self.assertEqual(status.to_payload().lower(), expected.lower())
+
+    def test_status_transitions_are_explicit(self):
+        received = StatusMessage(
+            request_id="fe39d9c7-fab9-4a51-9d48-6c26684d38fe",
+            state="received",
+        )
+        connected = StatusMessage(
+            request_id=received.request_id,
+            state="connected",
+        )
+        self.assertTrue(received.can_transition_to("connecting"))
+        self.assertFalse(received.can_transition_to("connected"))
+        self.assertFalse(connected.can_transition_to("connecting"))
+
+    def test_rejects_failed_status_without_error(self):
+        document = json.loads((FIXTURES / "status-failed.json").read_bytes())
+        document["error"] = None
+        with self.assertRaisesRegex(ProtocolError, "requires an error"):
+            StatusMessage.from_payload(json.dumps(document).encode())
+
+
+class SharedFramingFixtureTests(unittest.TestCase):
+    def test_oversize_header_fixture_is_rejected(self):
+        header = bytes.fromhex((FIXTURES / "frame-oversize-header.hex").read_text())
+        with self.assertRaisesRegex(ProtocolError, "frame length"):
+            FrameDecoder().feed(header)
 
 
 if __name__ == "__main__":

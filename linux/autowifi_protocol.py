@@ -16,9 +16,14 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from generated_constants import MAXIMUM_PAYLOAD_BYTES, PROTOCOL_VERSION
 
-MAX_PAYLOAD_BYTES = 65_536
+MAX_PAYLOAD_BYTES = MAXIMUM_PAYLOAD_BYTES
 SUPPORTED_SECURITY = frozenset({"open", "owe", "wpa2", "wpa3"})
+STATUS_STATES = frozenset({"received", "connecting", "connected", "failed"})
+STATUS_TRANSITIONS = frozenset(
+    {("received", "connecting"), ("connecting", "connected"), ("connecting", "failed")}
+)
 
 
 class ProtocolError(ValueError):
@@ -66,7 +71,10 @@ class NetworkCredential:
 
         if not isinstance(document, dict):
             raise ProtocolError("payload root must be an object")
-        if document.get("version") != 1 or document.get("type") != "wifi-credential":
+        if (
+            document.get("version") != PROTOCOL_VERSION
+            or document.get("type") != "wifi-credential"
+        ):
             raise ProtocolError("unsupported message version or type")
 
         request_id = document.get("requestID")
@@ -160,6 +168,52 @@ class NetworkCredential:
             settings["802-11-wireless-security"] = wireless_security
 
         return settings
+
+
+@dataclass(frozen=True)
+class StatusMessage:
+    request_id: str
+    state: str
+    error: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: bytes) -> "StatusMessage":
+        try:
+            document = json.loads(payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ProtocolError("payload is not UTF-8 JSON") from error
+        if not isinstance(document, dict):
+            raise ProtocolError("payload root must be an object")
+        if document.get("version") != PROTOCOL_VERSION or document.get("type") != "wifi-status":
+            raise ProtocolError("unsupported message version or type")
+        try:
+            request_id = str(uuid.UUID(document.get("requestID", "")))
+        except (ValueError, TypeError, AttributeError) as error:
+            raise ProtocolError("requestID must be a UUID") from error
+        state = document.get("state")
+        error_value = document.get("error")
+        if state not in STATUS_STATES:
+            raise ProtocolError("invalid status state")
+        if error_value is not None and not isinstance(error_value, str):
+            raise ProtocolError("status error must be a string or null")
+        if state == "failed" and not error_value:
+            raise ProtocolError("failed status requires an error code")
+        if state != "failed" and error_value is not None:
+            raise ProtocolError("non-failed status cannot carry an error")
+        return cls(request_id=request_id, state=state, error=error_value)
+
+    def to_payload(self) -> bytes:
+        document = {
+            "version": PROTOCOL_VERSION,
+            "type": "wifi-status",
+            "requestID": self.request_id,
+            "state": self.state,
+            "error": self.error,
+        }
+        return json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+
+    def can_transition_to(self, next_state: str) -> bool:
+        return (self.state, next_state) in STATUS_TRANSITIONS
 
 
 def frame(payload: bytes) -> bytes:
