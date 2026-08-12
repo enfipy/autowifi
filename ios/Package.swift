@@ -8,7 +8,13 @@ let package = Package(
         .library(name: "AutoWiFiWire", targets: ["AutoWiFiWire"]),
     ],
     targets: [
-        .target(name: "AutoWiFiWire"),
+        .target(
+            name: "AutoWiFiWire",
+            exclude: [
+                "MinimumTransport.swift",
+                "SparkBLEPingTransport.swift",
+            ]
+        ),
         .testTarget(name: "AutoWiFiWireTests", dependencies: ["AutoWiFiWire"]),
     ]
 )

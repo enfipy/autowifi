@@ -5,7 +5,11 @@
     "serviceUUID": "7A8D154F-B911-4858-BF22-B82E0C086B2F",
     "credentialRXUUID": "6927C5F7-C9BA-435C-8DB7-5D7958B19BA8",
     "statusTXUUID": "0B69E4BD-1320-4C08-8916-CA27E2395C0A",
-    "advertisedName": "Autowifi Spark"
+    "advertisedNames": {
+      "gigabyte": "Autowifi GIGABYTE",
+      "nvidia": "Autowifi NVIDIA",
+      "generic": "Autowifi GENERIC"
+    }
   },
   "ios": {
     "minimumVersion": "26.2",

@@ -92,6 +92,28 @@ The Spark notifies one status for every accepted request ID:
 Valid states are `received`, `connecting`, `connected`, and `failed`. Error text
 must be generic and must not echo secrets.
 
+## Coordinated accessory removal
+
+Removing an `ASAccessory` does not remove the corresponding BlueZ bond. The
+container therefore sends `accessory-forget` over the encrypted write
+characteristic before calling `ASAccessorySession.removeAccessory`:
+
+```text
+iPhone -- accessory-forget --> Spark
+iPhone <-- accessory-forget-ready -- Spark
+Spark schedules removal of that exact connected BlueZ peer
+iPhone removes its AccessorySetupKit record
+Spark enters ownerless onboarding until the first new bond
+```
+
+The Spark derives the device object path from BlueZ's encrypted GATT write
+metadata; the request cannot name an arbitrary device. Bond removal is delayed
+briefly so the acknowledgement can be delivered. If the acknowledgement is
+not received, iOS preserves its accessory record and reports a retryable error.
+An ownerless Spark remains pairable so a delayed protected iOS setup sheet
+cannot race a timer; the first new owner bond closes pairing immediately. This
+ordering prevents either side from silently retaining a stale bond.
+
 ## NetworkManager mapping
 
 After validation, the Linux daemon calls
@@ -144,4 +166,3 @@ accept session request
 
 Apple provides the network event and its credentials. Everything from mapping
 the event onward is the custom transport boundary.
-

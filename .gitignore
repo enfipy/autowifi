@@ -2,3 +2,16 @@ __pycache__/
 *.py[cod]
 .build/
 DerivedData/
+ios/build/
+ios/.swiftpm/
+xcuserdata/
+*.xcuserstate
+*.mobileprovision
+*.p12
+ios/Config/Signing.local.xcconfig
+spark-preflight*.txt
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~

@@ -67,12 +67,12 @@ extension AutoWiFiCredentialMessage {
 @available(iOS 26.2, *)
 final class MinimumNetworkEventForwarder {
     private let accessory: ASAccessory
-    private let sendFrame: @Sendable (Data) async throws -> Void
+    private let sendFrame: @Sendable (Data, UUID) -> Void
     private var task: Task<Void, Never>?
 
     init(
         accessory: ASAccessory,
-        sendFrame: @escaping @Sendable (Data) async throws -> Void
+        sendFrame: @escaping @Sendable (Data, UUID) -> Void
     ) {
         self.accessory = accessory
         self.sendFrame = sendFrame
@@ -97,7 +97,7 @@ final class MinimumNetworkEventForwarder {
                         do {
                             let message = try AutoWiFiCredentialMessage(network: network)
                             let frame = try AutoWiFiFrameCodec.frame(message)
-                            try await sendFrame(frame)
+                            sendFrame(frame, message.requestID)
                         } catch AutoWiFiNetworkMappingError.unsupportedSecurity,
                                 AutoWiFiNetworkMappingError.unsupportedCredential {
                             continue
@@ -107,8 +107,7 @@ final class MinimumNetworkEventForwarder {
             } catch is CancellationError {
                 return
             } catch {
-                // Report a redacted transport failure through the extension's
-                // own state channel. Never print the event or encoded payload.
+                // Never log the event, network description, or encoded payload.
                 return
             }
         }

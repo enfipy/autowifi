@@ -7,7 +7,11 @@ public enum AutoWiFiConstants {
     public static let serviceUUID = UUID(uuidString: "7A8D154F-B911-4858-BF22-B82E0C086B2F")!
     public static let credentialRXUUID = UUID(uuidString: "6927C5F7-C9BA-435C-8DB7-5D7958B19BA8")!
     public static let statusTXUUID = UUID(uuidString: "0B69E4BD-1320-4C08-8916-CA27E2395C0A")!
-    public static let advertisedName = "Autowifi Spark"
+    public static let advertisedNames = [
+        "gigabyte": "Autowifi GIGABYTE",
+        "nvidia": "Autowifi NVIDIA",
+        "generic": "Autowifi GENERIC",
+    ]
     public static let minimumIOSVersion = "26.2"
     public static let containerBundleID = "com.enfipy.autowifi"
     public static let transportExtensionBundleID = "com.enfipy.autowifi.transport"

@@ -1,0 +1,2 @@
+// Copy to Signing.local.xcconfig and replace the placeholder with your Team ID.
+AUTOWIFI_DEVELOPMENT_TEAM = YOUR_TEAM_ID

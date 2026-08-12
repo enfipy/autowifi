@@ -1,0 +1,87 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 70;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* AutoWiFiTransportExtension.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* AutoWiFiTransportExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A10000000000000000000003 /* PBXContainerItemProxy */ = {isa = PBXContainerItemProxy; containerPortal = A10000000000000000000004 /* Project object */; proxyType = 1; remoteGlobalIDString = A10000000000000000000005; remoteInfo = AutoWiFiTransportExtension; };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A10000000000000000000006 /* Embed ExtensionKit Extensions */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = "$(EXTENSIONS_FOLDER_PATH)"; dstSubfolderSpec = 16; files = (A10000000000000000000001 /* AutoWiFiTransportExtension.appex in Embed Extensions */, ); name = "Embed ExtensionKit Extensions"; runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		A10000000000000000000002 /* AutoWiFiTransportExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = AutoWiFiTransportExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000007 /* Autowifi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Autowifi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000020 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A10000000000000000000008 /* App exceptions */ = {isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (App.entitlements, Info.plist, ); target = A10000000000000000000009 /* Autowifi */; };
+		A1000000000000000000000A /* Extension exceptions */ = {isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (Extension.entitlements, Info.plist, ); target = A10000000000000000000005 /* AutoWiFiTransportExtension */; };
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		A1000000000000000000000B /* App */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A10000000000000000000008 /* App exceptions */, ); explicitFileTypes = {}; explicitFolders = (); path = App; sourceTree = "<group>"; };
+		A1000000000000000000000C /* Shared */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Sources/AutoWiFiWire; sourceTree = "<group>"; };
+		A1000000000000000000000D /* TransportExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A1000000000000000000000A /* Extension exceptions */, ); explicitFileTypes = {}; explicitFolders = (); path = TransportExtension; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A1000000000000000000000E /* App Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A1000000000000000000000F /* Extension Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A10000000000000000000010 = {isa = PBXGroup; children = (A1000000000000000000000B /* App */, A1000000000000000000000C /* Shared */, A1000000000000000000000D /* TransportExtension */, A10000000000000000000021 /* Config */, A10000000000000000000011 /* Products */, ); sourceTree = "<group>"; };
+		A10000000000000000000011 /* Products */ = {isa = PBXGroup; children = (A10000000000000000000007 /* Autowifi.app */, A10000000000000000000002 /* AutoWiFiTransportExtension.appex */, ); name = Products; sourceTree = "<group>"; };
+		A10000000000000000000021 /* Config */ = {isa = PBXGroup; children = (A10000000000000000000020 /* Signing.xcconfig */, ); path = Config; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A10000000000000000000009 /* Autowifi */ = {isa = PBXNativeTarget; buildConfigurationList = A10000000000000000000012 /* App configurations */; buildPhases = (A10000000000000000000013 /* App Sources */, A1000000000000000000000E /* App Frameworks */, A10000000000000000000014 /* App Resources */, A10000000000000000000006 /* Embed ExtensionKit Extensions */, ); buildRules = (); dependencies = (A10000000000000000000015 /* Extension dependency */, ); fileSystemSynchronizedGroups = (A1000000000000000000000B /* App */, A1000000000000000000000C /* Shared */, ); name = Autowifi; productName = Autowifi; productReference = A10000000000000000000007 /* Autowifi.app */; productType = "com.apple.product-type.application"; };
+		A10000000000000000000005 /* AutoWiFiTransportExtension */ = {isa = PBXNativeTarget; buildConfigurationList = A10000000000000000000016 /* Extension configurations */; buildPhases = (A10000000000000000000017 /* Extension Sources */, A1000000000000000000000F /* Extension Frameworks */, A10000000000000000000018 /* Extension Resources */, ); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (A1000000000000000000000D /* TransportExtension */, A1000000000000000000000C /* Shared */, ); name = AutoWiFiTransportExtension; productName = AutoWiFiTransportExtension; productReference = A10000000000000000000002 /* AutoWiFiTransportExtension.appex */; productType = "com.apple.product-type.extensionkit-extension"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A10000000000000000000004 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2660; LastUpgradeCheck = 2660; TargetAttributes = {A10000000000000000000009 = {CreatedOnToolsVersion = 26.6; }; A10000000000000000000005 = {CreatedOnToolsVersion = 26.6; }; }; }; buildConfigurationList = A10000000000000000000019 /* Project configurations */; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base, ); mainGroup = A10000000000000000000010; productRefGroup = A10000000000000000000011 /* Products */; projectDirPath = ""; projectRoot = ""; targets = (A10000000000000000000009 /* Autowifi */, A10000000000000000000005 /* AutoWiFiTransportExtension */, ); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A10000000000000000000014 /* App Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000018 /* Extension Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A10000000000000000000013 /* App Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000017 /* Extension Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A10000000000000000000015 /* Extension dependency */ = {isa = PBXTargetDependency; target = A10000000000000000000005 /* AutoWiFiTransportExtension */; targetProxy = A10000000000000000000003 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A1000000000000000000001A /* Project Debug */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu17; IPHONEOS_DEPLOYMENT_TARGET = 26.2; SDKROOT = iphoneos; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_VERSION = 5.0; }; name = Debug; };
+		A1000000000000000000001B /* Project Release */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; GCC_C_LANGUAGE_STANDARD = gnu17; IPHONEOS_DEPLOYMENT_TARGET = 26.2; SDKROOT = iphoneos; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_VERSION = 5.0; VALIDATE_PRODUCT = YES; }; name = Release; };
+		A1000000000000000000001C /* App Debug */ = {isa = XCBuildConfiguration; baseConfigurationReference = A10000000000000000000020 /* Signing.xcconfig */; buildSettings = {CODE_SIGN_ENTITLEMENTS = App/App.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = App/Info.plist; MARKETING_VERSION = 0.1; PRODUCT_BUNDLE_IDENTIFIER = com.enfipy.autowifi; PRODUCT_NAME = "$(TARGET_NAME)"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+		A1000000000000000000001D /* App Release */ = {isa = XCBuildConfiguration; baseConfigurationReference = A10000000000000000000020 /* Signing.xcconfig */; buildSettings = {CODE_SIGN_ENTITLEMENTS = App/App.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = App/Info.plist; MARKETING_VERSION = 0.1; PRODUCT_BUNDLE_IDENTIFIER = com.enfipy.autowifi; PRODUCT_NAME = "$(TARGET_NAME)"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1; }; name = Release; };
+		A1000000000000000000001E /* Extension Debug */ = {isa = XCBuildConfiguration; baseConfigurationReference = A10000000000000000000020 /* Signing.xcconfig */; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = TransportExtension/Extension.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = TransportExtension/Info.plist; MARKETING_VERSION = 0.1; PRODUCT_BUNDLE_IDENTIFIER = com.enfipy.autowifi.transport; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = iphoneos; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+		A1000000000000000000001F /* Extension Release */ = {isa = XCBuildConfiguration; baseConfigurationReference = A10000000000000000000020 /* Signing.xcconfig */; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = TransportExtension/Extension.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = TransportExtension/Info.plist; MARKETING_VERSION = 0.1; PRODUCT_BUNDLE_IDENTIFIER = com.enfipy.autowifi.transport; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = iphoneos; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A10000000000000000000019 /* Project configurations */ = {isa = XCConfigurationList; buildConfigurations = (A1000000000000000000001A /* Project Debug */, A1000000000000000000001B /* Project Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A10000000000000000000012 /* App configurations */ = {isa = XCConfigurationList; buildConfigurations = (A1000000000000000000001C /* App Debug */, A1000000000000000000001D /* App Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A10000000000000000000016 /* Extension configurations */ = {isa = XCConfigurationList; buildConfigurations = (A1000000000000000000001E /* Extension Debug */, A1000000000000000000001F /* Extension Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = A10000000000000000000004 /* Project object */;
+}

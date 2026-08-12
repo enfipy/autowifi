@@ -30,6 +30,79 @@ class ProtocolError(ValueError):
     """A peer sent a malformed or unsupported message."""
 
 
+@dataclass(frozen=True)
+class PingMessage:
+    request_id: str
+
+    @classmethod
+    def from_payload(cls, payload: bytes) -> "PingMessage":
+        try:
+            document = json.loads(payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ProtocolError("payload is not UTF-8 JSON") from error
+        if not isinstance(document, dict):
+            raise ProtocolError("payload root must be an object")
+        if document.get("version") != PROTOCOL_VERSION or document.get("type") != "transport-ping":
+            raise ProtocolError("unsupported message version or type")
+        try:
+            request_id = str(uuid.UUID(document.get("requestID", "")))
+        except (ValueError, TypeError, AttributeError) as error:
+            raise ProtocolError("requestID must be a UUID") from error
+        return cls(request_id=request_id)
+
+    def pong_payload(self) -> bytes:
+        return json.dumps(
+            {
+                "version": PROTOCOL_VERSION,
+                "type": "transport-pong",
+                "requestID": self.request_id,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+
+
+@dataclass(frozen=True)
+class ForgetRequest:
+    request_id: str
+
+    @classmethod
+    def from_payload(cls, payload: bytes) -> "ForgetRequest":
+        try:
+            document = json.loads(payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ProtocolError("payload is not UTF-8 JSON") from error
+        if not isinstance(document, dict):
+            raise ProtocolError("payload root must be an object")
+        if (
+            document.get("version") != PROTOCOL_VERSION
+            or document.get("type") != "accessory-forget"
+        ):
+            raise ProtocolError("unsupported message version or type")
+        try:
+            request_id = str(uuid.UUID(document.get("requestID", "")))
+        except (ValueError, TypeError, AttributeError) as error:
+            raise ProtocolError("requestID must be a UUID") from error
+        return cls(request_id=request_id)
+
+    def ready_payload(self) -> bytes:
+        return json.dumps(
+            {
+                "version": PROTOCOL_VERSION,
+                "type": "accessory-forget-ready",
+                "requestID": self.request_id,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+
+
+@dataclass(frozen=True)
+class TransportReply:
+    payload: bytes
+    forget_peer: bool = False
+
+
 class FrameDecoder:
     """Incrementally decode uint32-be length-prefixed payloads."""
 
@@ -220,3 +293,30 @@ def frame(payload: bytes) -> bytes:
     if not payload or len(payload) > MAX_PAYLOAD_BYTES:
         raise ProtocolError("invalid frame length")
     return struct.pack(">I", len(payload)) + payload
+
+
+def transport_reply(payload: bytes) -> TransportReply:
+    """Validate one request and describe its response and requested local action."""
+
+    try:
+        return TransportReply(PingMessage.from_payload(payload).pong_payload())
+    except ProtocolError:
+        pass
+
+    try:
+        forget = ForgetRequest.from_payload(payload)
+        return TransportReply(forget.ready_payload(), forget_peer=True)
+    except ProtocolError:
+        credential = NetworkCredential.from_payload(payload)
+        return TransportReply(
+            StatusMessage(
+                request_id=credential.request_id,
+                state="received",
+            ).to_payload()
+        )
+
+
+def transport_response(payload: bytes) -> bytes:
+    """Compatibility helper returning only the nonsecret response payload."""
+
+    return transport_reply(payload).payload

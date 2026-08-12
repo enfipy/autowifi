@@ -7,6 +7,98 @@ public enum AutoWiFiWireError: Error, Equatable {
     case invalidTransition
 }
 
+public struct AutoWiFiPingMessage: Codable, Equatable, Sendable {
+    public let version: Int
+    public let type: String
+    public let requestID: UUID
+
+    public init(requestID: UUID) {
+        version = AutoWiFiConstants.protocolVersion
+        type = "transport-ping"
+        self.requestID = requestID
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard
+            try values.decode(Int.self, forKey: .version) == AutoWiFiConstants.protocolVersion,
+            try values.decode(String.self, forKey: .type) == "transport-ping"
+        else {
+            throw AutoWiFiWireError.invalidMessage
+        }
+        self.init(requestID: try values.decode(UUID.self, forKey: .requestID))
+    }
+}
+
+public struct AutoWiFiPongMessage: Codable, Equatable, Sendable {
+    public let version: Int
+    public let type: String
+    public let requestID: UUID
+
+    public init(requestID: UUID) {
+        version = AutoWiFiConstants.protocolVersion
+        type = "transport-pong"
+        self.requestID = requestID
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard
+            try values.decode(Int.self, forKey: .version) == AutoWiFiConstants.protocolVersion,
+            try values.decode(String.self, forKey: .type) == "transport-pong"
+        else {
+            throw AutoWiFiWireError.invalidMessage
+        }
+        self.init(requestID: try values.decode(UUID.self, forKey: .requestID))
+    }
+}
+
+public struct AutoWiFiForgetRequestMessage: Codable, Equatable, Sendable {
+    public let version: Int
+    public let type: String
+    public let requestID: UUID
+
+    public init(requestID: UUID) {
+        version = AutoWiFiConstants.protocolVersion
+        type = "accessory-forget"
+        self.requestID = requestID
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard
+            try values.decode(Int.self, forKey: .version) == AutoWiFiConstants.protocolVersion,
+            try values.decode(String.self, forKey: .type) == "accessory-forget"
+        else {
+            throw AutoWiFiWireError.invalidMessage
+        }
+        self.init(requestID: try values.decode(UUID.self, forKey: .requestID))
+    }
+}
+
+public struct AutoWiFiForgetReadyMessage: Codable, Equatable, Sendable {
+    public let version: Int
+    public let type: String
+    public let requestID: UUID
+
+    public init(requestID: UUID) {
+        version = AutoWiFiConstants.protocolVersion
+        type = "accessory-forget-ready"
+        self.requestID = requestID
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard
+            try values.decode(Int.self, forKey: .version) == AutoWiFiConstants.protocolVersion,
+            try values.decode(String.self, forKey: .type) == "accessory-forget-ready"
+        else {
+            throw AutoWiFiWireError.invalidMessage
+        }
+        self.init(requestID: try values.decode(UUID.self, forKey: .requestID))
+    }
+}
+
 public enum AutoWiFiSecurity: String, Codable, CaseIterable, Sendable {
     case open
     case owe

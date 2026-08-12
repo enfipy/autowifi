@@ -97,6 +97,11 @@ Acceptance:
 
 ### P0 — Confirm the iPhone and signing account
 
+Status: **complete**. The iPhone 16 Pro runs iOS 26.6.1 with Developer Mode,
+is registered in the paid developer team, and has matching development
+profiles. Signed container and extension builds contain the expected
+entitlements; the app installs and launches on the physical phone.
+
 Deliverables:
 
 - Confirm the physical iPhone runs iOS 26.2 or later.
@@ -119,6 +124,12 @@ codesign -d --entitlements :- '<path-to-built-extension>'
 ```
 
 ### P1 — Confirm the Spark's actual Bluetooth and NetworkManager capabilities
+
+Status: **complete** on `enfis1`. BlueZ 5.72 exposes LE peripheral,
+advertising, GATT-manager, and Secure Connections support on `/org/bluez/hci0`.
+NetworkManager 1.46 owns Wi-Fi device path
+`/org/freedesktop/NetworkManager/Devices/14`; the OS-provided Python D-Bus and
+GLib bindings are present.
 
 Copy the `autowifi` folder to the target Spark and run the read-only collector
 while retaining Ethernet or local-console access:
@@ -153,6 +164,10 @@ Acceptance:
 
 ### L0 — Build the daemon skeleton and D-Bus object tree
 
+Status: **complete** on `enfis1`. Registration, advertisement, daemon
+operation, clean shutdown, and start/stop/restart cleanup were exercised
+against the real BlueZ controller without changing Wi-Fi.
+
 Deliverables under `linux/`:
 
 - `autowifi_setupd.py` with a single async/process lifecycle and clean SIGTERM.
@@ -171,11 +186,23 @@ Acceptance:
 - BlueZ introspection shows the service and two characteristics.
 - Start/stop/restart does not leave a duplicate advertisement or registration.
 
-### L1 — Add pairing window, bonding, and Secure Connections policy
+### L1 — Add owner onboarding, bonding, and Secure Connections policy
+
+Status: **in progress**. The `NoInputNoOutput` agent, owner-based onboarding,
+automatic pairability close, encrypted RX/TX characteristic flags, and clean
+adapter restoration are implemented and exercised on `enfis1`. A physical
+iPhone completed AccessorySetupKit setup and is paired, bonded, connected, and
+service-resolved in BlueZ; pairing was then disabled without dropping the
+connection or advertisement. BlueZ's
+`Adapter1.Discoverable` mode remains off; BLE discovery is provided by the LE
+service advertisement because this controller returns `Busy` if adapter mode
+is toggled while an advertisement is active. Reconnect, unpaired-write, and
+Secure-Connections-only acceptance gates remain.
 
 Deliverables:
 
-- A pairing mode with an explicit timeout, for example 120 seconds.
+- An ownerless device remains pairable until its first bond; a bonded device is
+  not pairable but keeps advertising for authorized reconnects.
 - A BlueZ pairing agent whose I/O capability matches the Spark's real setup.
   Start with `NoInputNoOutput`; retain a documented passkey/confirmation test
   variant if Apple rejects that bond.
@@ -218,6 +245,10 @@ Acceptance:
 
 ### I0 — Create the signed Xcode project from Apple's packaging shape
 
+Status: **complete**. Both targets and current/legacy SDK callbacks compile.
+The paid-team development build signs with the required entitlements, installs
+on the registered iPhone, and launches through CoreDevice.
+
 Deliverables under `ios/`:
 
 - One SwiftUI container target and one Accessory Transport Extension target.
@@ -250,6 +281,13 @@ Acceptance:
 
 ### I1 — Implement minimal onboarding UI
 
+Status: **in progress**. The physical picker discovers `enfis1` and setup
+creates the expected persistent BlueZ bond. The working descriptor matches
+Apple's current sample: service UUID plus `.bluetoothPairingLE`, without an
+`.immediate` range restriction. iPhone Mirroring cannot present the protected
+AccessorySetupKit sheet and is not a valid discovery test surface. Relaunch
+restore and remove/re-pair remain to verify.
+
 The container needs only four visible states: no Spark, pairing, paired but not
 authorized, and ready. Add a diagnostics sheet showing redacted state and error
 codes, never SSIDs or credentials.
@@ -272,6 +310,12 @@ Acceptance:
 - Removing it clears authorization on iOS and permits a clean re-pair.
 
 ### I2 — Prove encrypted BLE with a nonsecret ping/ACK
+
+Status: **complete**. The physical iPhone restored the AccessorySetupKit bond
+and completed a framed encrypted GATT ping/pong against `enfis1` in 92 ms. The
+Spark acknowledged the request without reopening pairing. The transport waits
+through CoreBluetooth's observed transient `poweredOff -> poweredOn` startup
+sequence instead of treating the first callback as terminal.
 
 Deliverables:
 
@@ -297,6 +341,13 @@ passes on the real Spark.
 
 ### I3 — Implement the Accessory Transport Extension lifecycle
 
+Status: **complete**. The proven GATT probe is shared by both targets. The
+extension retains its transport session, activates an extension-local
+AccessorySetupKit session, requires exactly one configured MVP accessory, and
+runs an extension-originated encrypted ping with bounded cleanup. Apple
+launched the extension during authorization and `enfis1` acknowledged its
+second encrypted ping.
+
 Deliverables:
 
 - Accept `AccessoryTransportSession.Request` and retain a per-session handler.
@@ -317,6 +368,12 @@ Acceptance:
 
 ### I4 — Pass Apple's Wi-Fi-sharing authorization security gate
 
+Status: **complete for Ask Every Time**. Apple accepted the accessory transport
+without `accessoryTransportNotSecured`, displayed all three sharing modes, and
+the user selected Ask Every Time. iOS then offered the current Wi-Fi network
+for sharing. Automatic mode remains a user-selectable follow-up, not a code
+blocker.
+
 Deliverables:
 
 - After the peripheral is connected and encrypted, construct
@@ -336,6 +393,16 @@ Acceptance:
   security variants; this is a formal blocker, not an error to suppress.
 
 ### I5 — Forward supported Apple network events
+
+Status: **in progress**. The extension starts a
+`WINetworkSharingProvider` only after its encrypted ping succeeds, maps only
+the supported v1 network types, serializes credential transfers, and requires
+a matching `received` status from the Spark. The current Spark milestone
+validates and acknowledges the credential but deliberately does not mutate
+NetworkManager. The first live network, `GCC`, advertises WPA1+WPA2; Apple
+therefore reports the intentionally unsupported legacy `.wpa` policy and the
+mapper correctly skips it. Live acceptance remains to test against a
+WPA2/WPA3-only or open network.
 
 Deliverables:
 
@@ -450,7 +517,7 @@ Test at least:
 
 Acceptance:
 
-- No infinite retry loops, duplicate profiles, leaked pairing windows, or
+- No infinite retry loops, duplicate profiles, leaked onboarding state, or
   credential-bearing logs.
 - The UI provides one clear recovery action: retry, reauthorize, or remove and
   re-pair.
@@ -466,8 +533,8 @@ Deliverables:
 - An install script or Debian package that installs code, D-Bus/PolicyKit rules
   if needed, service unit, and configuration without overwriting unrelated
   BlueZ settings.
-- A separate command to open the short pairing window; normal boot must not
-  remain discoverable indefinitely.
+- On boot, automatically open onboarding only when no bonded owner exists and
+  close it immediately after the first bond.
 
 Acceptance:
 

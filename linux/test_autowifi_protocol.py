@@ -6,9 +6,12 @@ import unittest
 from autowifi_protocol import (
     FrameDecoder,
     NetworkCredential,
+    PingMessage,
     ProtocolError,
     StatusMessage,
     frame,
+    transport_reply,
+    transport_response,
 )
 
 
@@ -42,6 +45,49 @@ class FrameDecoderTests(unittest.TestCase):
         decoder = FrameDecoder(maximum_payload_bytes=8)
         with self.assertRaisesRegex(ProtocolError, "frame length"):
             decoder.feed(b"\x00\x00\x00\x09")
+
+
+class PingTests(unittest.TestCase):
+    def test_decodes_ping_and_encodes_shared_pong(self):
+        ping = PingMessage.from_payload((FIXTURES / "transport-ping.json").read_bytes())
+        expected = (FIXTURES / "transport-pong.json").read_bytes().strip()
+        self.assertEqual(ping.pong_payload().lower(), expected.lower())
+
+
+class TransportResponseTests(unittest.TestCase):
+    def test_ping_returns_matching_pong(self):
+        response = transport_response((FIXTURES / "transport-ping.json").read_bytes())
+        pong = PingMessage.from_payload(
+            response.replace(b"transport-pong", b"transport-ping")
+        )
+        self.assertEqual(
+            pong.request_id,
+            "fe39d9c7-fab9-4a51-9d48-6c26684d38fe",
+        )
+
+    def test_credential_returns_received_without_network_side_effect(self):
+        response = transport_response((FIXTURES / "credential-wpa2.json").read_bytes())
+        status = StatusMessage.from_payload(response)
+        self.assertEqual(status.state, "received")
+        self.assertIsNone(status.error)
+
+    def test_forget_request_acknowledges_before_requesting_peer_removal(self):
+        reply = transport_reply((FIXTURES / "accessory-forget.json").read_bytes())
+        expected = (FIXTURES / "accessory-forget-ready.json").read_bytes().strip()
+        self.assertEqual(reply.payload.lower(), expected.lower())
+        self.assertTrue(reply.forget_peer)
+
+    def test_normal_requests_never_request_peer_removal(self):
+        self.assertFalse(
+            transport_reply((FIXTURES / "transport-ping.json").read_bytes()).forget_peer
+        )
+        self.assertFalse(
+            transport_reply((FIXTURES / "credential-wpa2.json").read_bytes()).forget_peer
+        )
+
+    def test_invalid_request_is_rejected(self):
+        with self.assertRaises(ProtocolError):
+            transport_response(b"{}")
 
 
 class CredentialTests(unittest.TestCase):

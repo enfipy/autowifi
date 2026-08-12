@@ -20,4 +20,4 @@ xcrun swiftc \
     -module-cache-path "$task_tmp/ios-module-cache" \
     ios/Sources/AutoWiFiWire/GeneratedConstants.swift \
     ios/Sources/AutoWiFiWire/WireProtocol.swift \
-    ios/MinimumTransport.swift
+    ios/Sources/AutoWiFiWire/MinimumTransport.swift

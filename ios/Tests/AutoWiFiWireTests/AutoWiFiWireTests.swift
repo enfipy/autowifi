@@ -50,6 +50,50 @@ private extension Data {
     #expect(try AutoWiFiFrameCodec.payload(for: message) == fixture("status-failed.json"))
 }
 
+@Test func swiftPingAndPongEncodingMatchesSharedFixtures() throws {
+    #expect(
+        try AutoWiFiFrameCodec.payload(for: AutoWiFiPingMessage(requestID: fixtureRequestID))
+            == fixture("transport-ping.json")
+    )
+    #expect(
+        try AutoWiFiFrameCodec.payload(for: AutoWiFiPongMessage(requestID: fixtureRequestID))
+            == fixture("transport-pong.json")
+    )
+}
+
+@Test func swiftForgetHandshakeMatchesSharedFixtures() throws {
+    #expect(
+        try AutoWiFiFrameCodec.payload(
+            for: AutoWiFiForgetRequestMessage(requestID: fixtureRequestID)
+        ) == fixture("accessory-forget.json")
+    )
+    #expect(
+        try AutoWiFiFrameCodec.payload(
+            for: AutoWiFiForgetReadyMessage(requestID: fixtureRequestID)
+        ) == fixture("accessory-forget-ready.json")
+    )
+
+    let ready = try JSONDecoder().decode(
+        AutoWiFiForgetReadyMessage.self,
+        from: fixture("accessory-forget-ready.json")
+    )
+    #expect(ready.requestID == fixtureRequestID)
+}
+
+@Test func pingAndPongDecodersValidateMessageEnvelope() throws {
+    let ping = try JSONDecoder().decode(AutoWiFiPingMessage.self, from: fixture("transport-ping.json"))
+    let pong = try JSONDecoder().decode(AutoWiFiPongMessage.self, from: fixture("transport-pong.json"))
+    #expect(ping.requestID == fixtureRequestID)
+    #expect(pong.requestID == fixtureRequestID)
+
+    let wrongType = Data(
+        "{\"requestID\":\"\(fixtureRequestID.uuidString)\",\"type\":\"wifi-status\",\"version\":1}".utf8
+    )
+    #expect(throws: (any Error).self) {
+        try JSONDecoder().decode(AutoWiFiPongMessage.self, from: wrongType)
+    }
+}
+
 @Test(arguments: [
     "credential-open.json",
     "credential-owe.json",
@@ -99,4 +143,29 @@ func decodesSharedStatusFixtures(name: String) throws {
     #expect(AutoWiFiStatusState.connecting.canTransition(to: .failed))
     #expect(!AutoWiFiStatusState.received.canTransition(to: .connected))
     #expect(!AutoWiFiStatusState.connected.canTransition(to: .connecting))
+}
+
+@Test func removalRecoverySurvivesRelaunchAndExpiresDeterministically() {
+    let startedAt = Date(timeIntervalSince1970: 1_000)
+    let deadline = RemovalRecoveryPolicy.deadline(startedAt: startedAt)
+
+    #expect(deadline == Date(timeIntervalSince1970: 1_060))
+    #expect(
+        RemovalRecoveryPolicy.remainingSeconds(
+            deadline: deadline,
+            now: Date(timeIntervalSince1970: 1_000)
+        ) == 60
+    )
+    #expect(
+        RemovalRecoveryPolicy.remainingSeconds(
+            deadline: deadline,
+            now: Date(timeIntervalSince1970: 1_030.2)
+        ) == 30
+    )
+    #expect(
+        RemovalRecoveryPolicy.remainingSeconds(
+            deadline: deadline,
+            now: Date(timeIntervalSince1970: 1_060)
+        ) == 0
+    )
 }
