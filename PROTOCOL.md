@@ -92,6 +92,12 @@ The Spark notifies one status for every accepted request ID:
 Valid states are `received`, `connecting`, `connected`, and `failed`. Error text
 must be generic and must not echo secrets.
 
+With multiple configured accessories, the extension creates one provider,
+credential queue, and CoreBluetooth connection pipeline per AccessorySetupKit
+Bluetooth identifier. Request IDs are scoped to their pipeline. A terminal
+failure stops only that credential operation; it never cancels another
+accessory's delivery. Each accessory receives credentials directly from iOS.
+
 ## Coordinated accessory removal
 
 Removing an `ASAccessory` does not remove the corresponding BlueZ bond. The
@@ -117,8 +123,8 @@ ordering prevents either side from silently retaining a stale bond.
 ## NetworkManager mapping
 
 After validation, the Linux daemon calls
-`org.freedesktop.NetworkManager.AddAndActivateConnection2` with a volatile or
-in-memory profile for the first experiment:
+`org.freedesktop.NetworkManager.AddAndActivateConnection2` with a memory-only
+profile:
 
 ```text
 connection.type                 = 802-11-wireless
@@ -136,8 +142,11 @@ ipv6.method                     = auto
 ```
 
 Only after the device reports an activated connection should the daemon send
-`connected`. Decide separately whether successful profiles should later be
-persisted for boot-time reconnection.
+`connected`. Autowifi does not replace an active Wi-Fi connection; the request
+fails with a generic code instead. The memory profile can reconnect during the
+same NetworkManager lifetime, but it is not persisted across a Spark reboot.
+After boot, iOS automatic sharing is expected to deliver the current network
+again over BLE.
 
 ## Minimum Swift flow
 

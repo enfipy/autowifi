@@ -15,7 +15,17 @@ class ProductIdentityTests(unittest.TestCase):
 
     def test_explicit_override_is_stable(self):
         self.assertEqual(select_product("GIGABYTE", "AI TOP ATOM", "nvidia"), "nvidia")
-        self.assertEqual(advertised_name("nvidia"), "Autowifi NVIDIA")
+
+    def test_picker_subtitle_is_only_the_sanitized_hostname(self):
+        self.assertEqual(
+            advertised_name("enfis1"),
+            "enfis1",
+        )
+        self.assertEqual(
+            advertised_name("enfis2"),
+            "enfis2",
+        )
+        self.assertEqual(advertised_name("enfis 1"), "enfis-1")
 
 
 if __name__ == "__main__":

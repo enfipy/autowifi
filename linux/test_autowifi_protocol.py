@@ -65,11 +65,12 @@ class TransportResponseTests(unittest.TestCase):
             "fe39d9c7-fab9-4a51-9d48-6c26684d38fe",
         )
 
-    def test_credential_returns_received_without_network_side_effect(self):
-        response = transport_response((FIXTURES / "credential-wpa2.json").read_bytes())
-        status = StatusMessage.from_payload(response)
+    def test_credential_returns_received_and_requests_network_activation(self):
+        reply = transport_reply((FIXTURES / "credential-wpa2.json").read_bytes())
+        status = StatusMessage.from_payload(reply.payload)
         self.assertEqual(status.state, "received")
         self.assertIsNone(status.error)
+        self.assertEqual(reply.credential.ssid, b"WPA2Net")
 
     def test_forget_request_acknowledges_before_requesting_peer_removal(self):
         reply = transport_reply((FIXTURES / "accessory-forget.json").read_bytes())

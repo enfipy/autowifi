@@ -9,7 +9,14 @@ import dbus.exceptions
 import dbus.service
 from gi.repository import GLib
 
-from autowifi_protocol import FrameDecoder, ProtocolError, frame, transport_reply
+from autowifi_protocol import (
+    FrameDecoder,
+    NetworkCredential,
+    ProtocolError,
+    StatusMessage,
+    frame,
+    transport_reply,
+)
 from generated_constants import CREDENTIAL_RX_UUID, SERVICE_UUID, STATUS_TX_UUID
 
 DBUS_PROPERTIES = "org.freedesktop.DBus.Properties"
@@ -158,6 +165,10 @@ class CredentialCharacteristic(Characteristic):
         service: Service,
         send_status: Callable[[bytes], None],
         forget_peer: Callable[[str], None],
+        activate_credential: Callable[
+            [NetworkCredential, Callable[[StatusMessage], None]],
+            None,
+        ],
     ) -> None:
         super().__init__(
             bus,
@@ -168,6 +179,7 @@ class CredentialCharacteristic(Characteristic):
         )
         self.send_status = send_status
         self.forget_peer = forget_peer
+        self.activate_credential = activate_credential
         self.decoders: dict[str, FrameDecoder] = {}
 
     @dbus.service.method(GATT_CHARACTERISTIC, in_signature="aya{sv}")
@@ -178,6 +190,8 @@ class CredentialCharacteristic(Characteristic):
             for payload in decoder.feed(bytes(value)):
                 reply = transport_reply(payload)
                 self.send_status(reply.payload)
+                if reply.credential is not None:
+                    self.activate_credential(reply.credential, self._send_network_status)
                 if reply.forget_peer:
                     # BlueZ supplies the encrypted link's exact peer path. Delay removal
                     # long enough for the acknowledgement notification to reach iOS.
@@ -191,6 +205,9 @@ class CredentialCharacteristic(Characteristic):
             self.decoders.pop(peer, None)
             raise InvalidValueLength("invalid framed transport message") from error
 
+    def _send_network_status(self, status: StatusMessage) -> None:
+        self.send_status(status.to_payload())
+
     def _forget_peer(self, peer: str) -> bool:
         self.decoders.pop(peer, None)
         self.forget_peer(peer)
@@ -198,7 +215,15 @@ class CredentialCharacteristic(Characteristic):
 
 
 class Application(dbus.service.Object):
-    def __init__(self, bus: dbus.SystemBus, forget_peer: Callable[[str], None]) -> None:
+    def __init__(
+        self,
+        bus: dbus.SystemBus,
+        forget_peer: Callable[[str], None],
+        activate_credential: Callable[
+            [NetworkCredential, Callable[[StatusMessage], None]],
+            None,
+        ],
+    ) -> None:
         self.path = ROOT_PATH
         self.service = Service(bus)
         self.status = StatusCharacteristic(bus, self.service)
@@ -207,6 +232,7 @@ class Application(dbus.service.Object):
             self.service,
             self.status.send,
             forget_peer,
+            activate_credential,
         )
         self.service.characteristics = [self.credential, self.status]
         super().__init__(bus, self.path)

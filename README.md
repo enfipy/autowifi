@@ -1,9 +1,8 @@
 # autowifi feasibility spike
 
-This folder is implementing the smallest useful Apple Wi-Fi Infrastructure
-vertical slice for one DGX Spark. It is not yet a deployable
-credential-sharing utility: the current hardware-safe milestone exchanges only
-a nonsecret BLE ping/pong.
+This folder implements the smallest useful Apple Wi-Fi Infrastructure vertical
+slice for one DGX Spark: iOS delivers a supported network over encrypted BLE,
+and the Spark activates it through NetworkManager.
 
 ## Result
 
@@ -17,10 +16,10 @@ The published sample also needs two small compatibility updates for Xcode 26.6
 (new iOS 26.5 transport-handler requirements and an iOS 26.4 availability
 annotation). `RESEARCH.md` records the exact issue.
 
-The minimum sensible first vertical slice is intentionally narrower than the
-full framework:
+The implemented vertical slice is intentionally narrower than the full
+framework:
 
-- one iPhone and one DGX Spark;
+- one iPhone and one or more independently paired DGX Sparks;
 - iOS/iPadOS 26.2 or later;
 - open, OWE, WPA2-Personal, or WPA3-Personal networks;
 - one encrypted GATT write characteristic and one encrypted notify
@@ -41,6 +40,8 @@ artifacts are:
   ping/pong gate.
 - `linux/autowifi_protocol.py`: dependency-free framing, validation, and
   NetworkManager settings mapping.
+- `linux/network_manager.py`: status sequencing and request idempotency.
+- `linux/network_manager_dbus.py`: safe in-memory NetworkManager activation.
 - `linux/test_autowifi_protocol.py`: executable contract tests.
 
 The execution-ordered build backlog is in
@@ -52,7 +53,7 @@ The project keeps orchestration thin and concentrates behavior behind small
 interfaces:
 
 - `ios/App/AccessorySessionModel.swift` coordinates AccessorySetupKit,
-  WiFiInfrastructure, and the encrypted transport.
+  WiFiInfrastructure, per-Spark selection, and independent encrypted transports.
 - `ios/App/AccessoryCatalog.swift` owns pre-pairing product matching and
   GIGABYTE/NVIDIA picker artwork.
 - `ios/App/RemovalRecovery.swift` owns persisted post-removal recovery timing.
@@ -84,19 +85,52 @@ Before signing the iOS app, copy
 local file is ignored by Git; bundle IDs and BLE UUIDs remain committed because
 they are protocol and provisioning identities shared by both sides.
 
-Start the daemon on a Spark with:
+Install and enable the daemon on a Spark with:
 
 ```bash
-python3 linux/autowifi_setupd.py
+sudo scripts/install_spark.sh
+systemctl status autowifi-setupd.service
 ```
 
-The LE advertisement stays available for reconnects. An ownerless Spark stays
-pairable until its first owner bond succeeds; an owned Spark is not pairable.
-Wi-Fi and NetworkManager are not modified by this lifecycle.
+When the Spark user already has systemd lingering enabled, a BLE development
+daemon can be installed without root:
 
-The daemon derives a stable picker product identity from Linux DMI data:
-GIGABYTE `AI TOP ATOM` hardware advertises `Autowifi GIGABYTE`, NVIDIA hardware
-advertises `Autowifi NVIDIA`, and unknown hardware uses the generic artwork.
+```bash
+scripts/install_spark_user.sh
+systemctl --user status autowifi-setupd.service
+```
+
+The user installer deliberately refuses to proceed unless lingering is enabled,
+because otherwise "enabled" would mean login-time rather than boot-time startup.
+For unattended Wi-Fi activation, use the root unit unless `nmcli general
+permissions` reports `yes` (not `auth`) for NetworkManager `network-control` and
+connection modification. The root installer automatically disables a user unit
+before taking over.
+
+The root systemd unit starts after Bluetooth and NetworkManager and has the
+non-interactive authority needed to activate a connection. The lingering user
+unit retries until those system services are ready, but remains subject to the
+host's NetworkManager PolicyKit rules. Both restart after a failure and preserve
+BlueZ bonds. The LE advertisement stays available for reconnects. An ownerless
+Spark stays pairable until its first owner bond succeeds; an owned Spark is not
+pairable.
+
+On a credential request, Autowifi refuses to replace an already active Wi-Fi
+connection. If Wi-Fi is enabled and disconnected, it creates a memory-only
+profile, reports `connecting`, waits for NetworkManager state `activated`, and
+then reports `connected`. A failed profile is removed. Ethernet connections are
+left active. SSIDs and credentials are never written to Autowifi logs or process
+arguments.
+
+The daemon derives a stable picker product identity from Linux DMI data and
+advertises a product-specific discovery service UUID. GIGABYTE reuses the
+original shared service UUID for backwards compatibility; NVIDIA and generic
+hardware use private discovery UUIDs. This selects the appropriate picker
+artwork without cluttering the visible label or claiming a Bluetooth SIG
+company allocation. The iOS picker temporarily accepts the legacy GIGABYTE
+discovery UUID used by early test installs, so those Sparks remain discoverable
+until their daemons are upgraded. The BLE local name is only the sanitized
+machine hostname, such as `enfis1` or `enfis2`.
 Use `--product gigabyte`, `--product nvidia`, or `--product generic` only when
 the firmware-reported identity needs an explicit override.
 
@@ -111,6 +145,28 @@ then clears the iOS accessory. The Spark deletes only that connected iPhone's
 bond and enters ownerless onboarding until the first replacement bond succeeds;
 this operation does not touch Wi-Fi. Pairing closes immediately once an owner
 exists.
+
+## Multiple Sparks
+
+Add each Spark separately with **Add another Spark**. New accessories are
+selected by default. The app displays independent BLE, authorization, manual
+share, and removal state for every Bluetooth identifier.
+
+- **Set sharing for selected** asks Apple for a sharing policy separately and
+  sequentially for each selected Spark. Choose **Automatically Share** or **Ask
+  Every Time** in each system sheet.
+- **Share current network with selected** presents Apple's manual sharing flow
+  separately for each selected Spark.
+- **Select all** changes to **Deselect all** when every Spark is selected.
+  Deselecting a Spark does not revoke an existing Automatically Share
+  authorization; Apple stores that policy per accessory and it can be changed
+  in Settings.
+
+The transport extension maintains one isolated provider/BLE queue per restored
+accessory. A connection or NetworkManager failure on one Spark is logged only
+for that pipeline and does not cancel delivery to another. Credentials always
+travel directly from the iPhone to each selected/authorized Spark; Autowifi
+never forwards credentials between Sparks.
 
 After removal, the app preserves a 60-second Bluetooth recovery deadline in
 `UserDefaults`. If the app relaunches while iOS is still settling the removed
@@ -150,7 +206,7 @@ the visible button retries it.
 
 ## Deliberately not included yet
 
-- NetworkManager activation from a received credential.
-- Accessory Transport Extension-to-GATT delivery.
-- A systemd unit or privileged installation.
 - Logging of SSIDs or credentials.
+- Persistent Wi-Fi profiles across NetworkManager or Spark restarts. Automatic
+  sharing is expected to deliver the current network again after boot.
+- Replacing an already active Wi-Fi connection.

@@ -1,12 +1,12 @@
 import CoreBluetooth
 import Foundation
 
-/// A reusable encrypted GATT probe for an AccessorySetupKit-authorized accessory.
-/// It never handles Wi-Fi information; success proves only the secure transport path.
+/// Encrypted GATT transport for an AccessorySetupKit-authorized accessory.
+/// Credential success means NetworkManager reported an activated connection.
 final class SparkBLEPingTransport: NSObject {
-    private enum ExpectedResponse {
+    private enum ExpectedResponse: Equatable {
         case pong
-        case credentialReceived
+        case credentialConnected
         case forgetReady
     }
 
@@ -53,12 +53,14 @@ final class SparkBLEPingTransport: NSObject {
     private static let statusTXUUID = CBUUID(nsuuid: AutoWiFiConstants.statusTXUUID)
     private static let maximumAttempts = 2
     private static let attemptTimeout: TimeInterval = 12
+    private static let networkActivationTimeout: TimeInterval = 55
 
     private let identifier: UUID
     private let update: (State) -> Void
     private let configuredFrame: Data?
     private let configuredRequestID: UUID?
     private let expectedResponse: ExpectedResponse
+    private let holdConnectionWhenReady: Bool
     private var central: CBCentralManager?
     private var peripheral: CBPeripheral?
     private var credentialRX: CBCharacteristic?
@@ -77,6 +79,24 @@ final class SparkBLEPingTransport: NSObject {
         configuredFrame = nil
         configuredRequestID = nil
         expectedResponse = .pong
+        holdConnectionWhenReady = false
+        super.init()
+    }
+
+    /// Establishes and retains an encrypted GATT connection without sending a protocol frame.
+    /// Wi-Fi Infrastructure only shares with a currently connected accessory, so the container
+    /// app uses this mode as a short-lived lease while `askToShare()` wakes the extension.
+    init(
+        identifier: UUID,
+        holdConnectionWhenReady: Bool,
+        update: @escaping (State) -> Void
+    ) {
+        self.identifier = identifier
+        self.update = update
+        configuredFrame = nil
+        configuredRequestID = nil
+        expectedResponse = .pong
+        self.holdConnectionWhenReady = holdConnectionWhenReady
         super.init()
     }
 
@@ -90,7 +110,8 @@ final class SparkBLEPingTransport: NSObject {
         self.update = update
         configuredFrame = credentialFrame
         configuredRequestID = requestID
-        expectedResponse = .credentialReceived
+        expectedResponse = .credentialConnected
+        holdConnectionWhenReady = false
         super.init()
     }
 
@@ -105,6 +126,7 @@ final class SparkBLEPingTransport: NSObject {
         configuredFrame = forgetFrame
         configuredRequestID = requestID
         expectedResponse = .forgetReady
+        holdConnectionWhenReady = false
         super.init()
     }
 
@@ -173,7 +195,10 @@ final class SparkBLEPingTransport: NSObject {
             self?.fail(code)
         }
         timeout = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.attemptTimeout, execute: work)
+        let interval = expectedResponse == .credentialConnected
+            ? Self.networkActivationTimeout
+            : Self.attemptTimeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: work)
     }
 
     private func retryOrFail(_ code: String) {
@@ -227,14 +252,20 @@ final class SparkBLEPingTransport: NSObject {
                         fail("request-id-mismatch")
                         return
                     }
-                case .credentialReceived:
+                case .credentialConnected:
                     let status = try JSONDecoder().decode(AutoWiFiStatusMessage.self, from: payload)
-                    guard status.requestID == requestID else {
-                        fail("request-id-mismatch")
+                    guard let requestID else {
+                        fail("request-id-missing")
                         return
                     }
-                    guard status.state == .received else {
-                        fail("unexpected-status")
+                    switch try status.credentialDisposition(for: requestID) {
+                    case .pending:
+                        scheduleTimeout(code: "network-activation-timeout")
+                        continue
+                    case .connected:
+                        break
+                    case .failed(let code):
+                        fail(code)
                         return
                     }
                 case .forgetReady:
@@ -358,7 +389,6 @@ extension SparkBLEPingTransport: CBPeripheralDelegate {
             fail("characteristic-missing")
             return
         }
-        publish(.ready)
         peripheral.setNotifyValue(true, for: statusTX)
     }
 
@@ -370,6 +400,12 @@ extension SparkBLEPingTransport: CBPeripheralDelegate {
         guard characteristic.uuid == Self.statusTXUUID else { return }
         guard error == nil, characteristic.isNotifying else {
             fail("notification-subscribe")
+            return
+        }
+        publish(.ready)
+        if holdConnectionWhenReady {
+            timeout?.cancel()
+            timeout = nil
             return
         }
         preparePing()
