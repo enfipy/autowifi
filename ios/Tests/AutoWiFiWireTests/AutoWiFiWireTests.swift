@@ -28,6 +28,13 @@ private extension Data {
     #expect(AutoWiFiConstants.serviceUUID.uuidString == "7A8D154F-B911-4858-BF22-B82E0C086B2F")
     #expect(AutoWiFiConstants.credentialRXUUID.uuidString == "6927C5F7-C9BA-435C-8DB7-5D7958B19BA8")
     #expect(AutoWiFiConstants.statusTXUUID.uuidString == "0B69E4BD-1320-4C08-8916-CA27E2395C0A")
+    #expect(Set(AutoWiFiConstants.productDiscoveryUUIDs.keys) == [
+        "gigabyte", "nvidia", "generic",
+    ])
+    #expect(Set(AutoWiFiConstants.productDiscoveryUUIDs.values).count == 3)
+    #expect(AutoWiFiConstants.legacyGigabyteDiscoveryUUIDs == [
+        UUID(uuidString: "2C4691C0-AFFB-4700-90A4-A116F1B66FCC")!,
+    ])
 }
 
 @Test func swiftCredentialEncodingMatchesSharedFixture() throws {
@@ -145,6 +152,25 @@ func decodesSharedStatusFixtures(name: String) throws {
     #expect(!AutoWiFiStatusState.connected.canTransition(to: .connecting))
 }
 
+@Test func credentialTransportWaitsForNetworkManagerTerminalStatus() throws {
+    let received = try AutoWiFiStatusMessage(requestID: fixtureRequestID, state: .received)
+    let connecting = try AutoWiFiStatusMessage(requestID: fixtureRequestID, state: .connecting)
+    let connected = try AutoWiFiStatusMessage(requestID: fixtureRequestID, state: .connected)
+    let failed = try AutoWiFiStatusMessage(
+        requestID: fixtureRequestID,
+        state: .failed,
+        error: "network-activation-failed"
+    )
+
+    #expect(try received.credentialDisposition(for: fixtureRequestID) == .pending)
+    #expect(try connecting.credentialDisposition(for: fixtureRequestID) == .pending)
+    #expect(try connected.credentialDisposition(for: fixtureRequestID) == .connected)
+    #expect(
+        try failed.credentialDisposition(for: fixtureRequestID)
+            == .failed("network-activation-failed")
+    )
+}
+
 @Test func removalRecoverySurvivesRelaunchAndExpiresDeterministically() {
     let startedAt = Date(timeIntervalSince1970: 1_000)
     let deadline = RemovalRecoveryPolicy.deadline(startedAt: startedAt)
@@ -167,5 +193,48 @@ func decodesSharedStatusFixtures(name: String) throws {
             deadline: deadline,
             now: Date(timeIntervalSince1970: 1_060)
         ) == 0
+    )
+}
+
+@Test func sparkSelectionAddsNewAccessoriesWithoutForgettingUserChoices() {
+    let first = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+    let second = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+    var selection = SparkSelection()
+
+    selection.reconcile(available: [first])
+    #expect(selection.selected == [first])
+
+    selection.reconcile(available: [first, second])
+    #expect(selection.selected == [first, second])
+
+    selection.toggle(first)
+    selection.reconcile(available: [first, second])
+    #expect(selection.selected == [second])
+
+    selection.reconcile(available: [first])
+    #expect(selection.selected.isEmpty)
+
+    selection.selectAll()
+    #expect(selection.selected == [first])
+    selection.deselectAll()
+    #expect(selection.selected.isEmpty)
+}
+
+@Test func manualSharingAuthorizesBeforeAskingAndSkipsAutomaticMode() {
+    #expect(
+        AutoWiFiManualSharePolicy.action(for: .notRequested)
+            == .requestAuthorization
+    )
+    #expect(
+        AutoWiFiManualSharePolicy.action(for: .askToShare)
+            == .askToShare
+    )
+    #expect(
+        AutoWiFiManualSharePolicy.action(for: .automatic)
+            == .alreadyAutomatic
+    )
+    #expect(
+        AutoWiFiManualSharePolicy.action(for: .denied)
+            == .authorizationDenied
     )
 }

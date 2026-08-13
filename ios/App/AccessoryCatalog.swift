@@ -4,34 +4,43 @@ import UIKit
 
 enum AccessoryCatalog {
     static func pickerItems() -> [ASPickerDisplayItem] {
-        [
+        var items = [
             item(
                 name: "GIGABYTE AI TOP ATOM",
-                product: "gigabyte",
+                discoveryUUID: AutoWiFiConstants.productDiscoveryUUIDs["gigabyte"]!,
                 imageName: "gigabyte-spark"
             ),
             item(
                 name: "NVIDIA DGX Spark",
-                product: "nvidia",
+                discoveryUUID: AutoWiFiConstants.productDiscoveryUUIDs["nvidia"]!,
                 imageName: "nvidia-spark"
             ),
             item(
                 name: "Autowifi PC",
-                product: "generic",
+                discoveryUUID: AutoWiFiConstants.productDiscoveryUUIDs["generic"]!,
                 imageName: nil
             ),
         ]
+
+        // Keep accepting the temporary UUID shipped to early Sparks. This migration
+        // entry can be removed after every daemon has been reinstalled from current source.
+        items += AutoWiFiConstants.legacyGigabyteDiscoveryUUIDs.map { discoveryUUID in
+            item(
+                name: "GIGABYTE AI TOP ATOM",
+                discoveryUUID: discoveryUUID,
+                imageName: "gigabyte-spark"
+            )
+        }
+        return items
     }
 
     private static func item(
         name: String,
-        product: String,
+        discoveryUUID: UUID,
         imageName: String?
     ) -> ASPickerDisplayItem {
         let descriptor = ASDiscoveryDescriptor()
-        descriptor.bluetoothServiceUUID = CBUUID(nsuuid: AutoWiFiConstants.serviceUUID)
-        descriptor.bluetoothNameSubstring = AutoWiFiConstants.advertisedNames[product]!
-        descriptor.bluetoothNameSubstringCompareOptions = [.caseInsensitive]
+        descriptor.bluetoothServiceUUID = CBUUID(nsuuid: discoveryUUID)
         descriptor.supportedOptions.insert(.bluetoothPairingLE)
         return ASPickerDisplayItem(
             name: name,

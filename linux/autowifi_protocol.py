@@ -101,6 +101,7 @@ class ForgetRequest:
 class TransportReply:
     payload: bytes
     forget_peer: bool = False
+    credential: NetworkCredential | None = None
 
 
 class FrameDecoder:
@@ -312,7 +313,8 @@ def transport_reply(payload: bytes) -> TransportReply:
             StatusMessage(
                 request_id=credential.request_id,
                 state="received",
-            ).to_payload()
+            ).to_payload(),
+            credential=credential,
         )
 
 

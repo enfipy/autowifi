@@ -1,0 +1,30 @@
+[Unit]
+Description=Autowifi encrypted BLE setup daemon
+Documentation=https://github.com/enfipy/autowifi
+Wants=bluetooth.service NetworkManager.service
+After=bluetooth.service NetworkManager.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/autowifi
+ExecStart=/usr/bin/python3 /opt/autowifi/autowifi_setupd.py
+Environment=PYTHONDONTWRITEBYTECODE=1
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=10s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

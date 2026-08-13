@@ -24,8 +24,6 @@
     <dict>
         <key>EXExtensionPointIdentifier</key>
         <string>com.apple.accessory-transport-extension</string>
-        <key>Transport</key>
-        <string>Local</string>
     </dict>
     <key>NSAccessorySetupKitSupports</key>
     <array>
@@ -34,7 +32,12 @@
     <key>NSAccessorySetupBluetoothServices</key>
     <array>
         <string>7A8D154F-B911-4858-BF22-B82E0C086B2F</string>
+        <string>7601AC6E-32BB-487A-8388-1F408E957CD5</string>
+        <string>9552502C-B98C-4D22-95A6-20C25652773D</string>
+        <string>2C4691C0-AFFB-4700-90A4-A116F1B66FCC</string>
     </array>
+    <!-- Keep the extension's service declaration identical to the app's
+         picker filter so both bundles describe the same accessories. -->
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Autowifi uses Bluetooth to securely configure your DGX Spark.</string>
 </dict>

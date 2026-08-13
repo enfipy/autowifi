@@ -7,10 +7,13 @@ public enum AutoWiFiConstants {
     public static let serviceUUID = UUID(uuidString: "7A8D154F-B911-4858-BF22-B82E0C086B2F")!
     public static let credentialRXUUID = UUID(uuidString: "6927C5F7-C9BA-435C-8DB7-5D7958B19BA8")!
     public static let statusTXUUID = UUID(uuidString: "0B69E4BD-1320-4C08-8916-CA27E2395C0A")!
-    public static let advertisedNames = [
-        "gigabyte": "Autowifi GIGABYTE",
-        "nvidia": "Autowifi NVIDIA",
-        "generic": "Autowifi GENERIC",
+    public static let productDiscoveryUUIDs = [
+        "gigabyte": UUID(uuidString: "7A8D154F-B911-4858-BF22-B82E0C086B2F")!,
+        "nvidia": UUID(uuidString: "7601AC6E-32BB-487A-8388-1F408E957CD5")!,
+        "generic": UUID(uuidString: "9552502C-B98C-4D22-95A6-20C25652773D")!,
+    ]
+    public static let legacyGigabyteDiscoveryUUIDs = [
+        UUID(uuidString: "2C4691C0-AFFB-4700-90A4-A116F1B66FCC")!,
     ]
     public static let minimumIOSVersion = "26.2"
     public static let containerBundleID = "com.enfipy.autowifi"

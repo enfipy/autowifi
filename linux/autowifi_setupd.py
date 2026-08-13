@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import signal
+import socket
 import sys
 
 import dbus
@@ -27,9 +28,11 @@ from bluez_gatt import (
     DBusObject,
     Rejected,
 )
-from generated_constants import SERVICE_UUID
+from generated_constants import PRODUCT_DISCOVERY_UUIDS, SERVICE_UUID
 from product_identity import PRODUCTS, advertised_name, detect_product
 from ownership_policy import OwnershipAction, ownership_action
+from network_manager import NetworkManagerAdapter
+from network_manager_dbus import DBusActivationBackend, DBusNetworkManagerPort
 
 
 BLUEZ_SERVICE = "org.bluez"
@@ -48,13 +51,20 @@ class Advertisement(DBusObject):
     def __init__(self, bus: dbus.SystemBus, product: str) -> None:
         self.path = f"{ROOT_PATH}/advertisement0"
         self.product = product
+        self.local_name = advertised_name(socket.gethostname())
         super().__init__(bus, self.path)
 
     def properties(self) -> dict:
         return {
             "Type": dbus.String("peripheral"),
-            "ServiceUUIDs": dbus.Array([SERVICE_UUID], signature="s"),
-            "LocalName": dbus.String(advertised_name(self.product)),
+            # A product-specific private service UUID selects the picker image
+            # without overloading the visible LocalName or claiming a Bluetooth
+            # SIG company identifier. The GATT service itself remains SERVICE_UUID.
+            "ServiceUUIDs": dbus.Array(
+                [PRODUCT_DISCOVERY_UUIDS[self.product]],
+                signature="s",
+            ),
+            "LocalName": dbus.String(self.local_name),
             "Includes": dbus.Array(["tx-power"], signature="s"),
         }
 
@@ -274,7 +284,13 @@ def main() -> int:
             error_handler=lambda error: reopen_pairing(error=error),
         )
 
-    application = Application(bus, forget_peer)
+    network_manager = NetworkManagerAdapter(
+        DBusActivationBackend(
+            DBusNetworkManagerPort(bus),
+            schedule=GLib.timeout_add,
+        )
+    )
+    application = Application(bus, forget_peer, network_manager.activate)
 
     def fail(prefix: str, error: Exception) -> None:
         nonlocal failed
@@ -290,7 +306,8 @@ def main() -> int:
             fail("pairing setup failed", error)
             return
         print(
-            f"Autowifi BLE ready on {adapter_path}; service={SERVICE_UUID}; product={product}",
+            f"Autowifi BLE ready on {adapter_path}; service={SERVICE_UUID}; "
+            f"product={product}; name={advertisement.local_name}",
             flush=True,
         )
 

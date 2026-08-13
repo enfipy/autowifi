@@ -232,6 +232,31 @@ public struct AutoWiFiStatusMessage: Codable, Equatable, Sendable {
     }
 }
 
+public enum AutoWiFiCredentialDisposition: Equatable, Sendable {
+    case pending
+    case connected
+    case failed(String)
+}
+
+public extension AutoWiFiStatusMessage {
+    func credentialDisposition(for expectedRequestID: UUID) throws
+        -> AutoWiFiCredentialDisposition
+    {
+        guard requestID == expectedRequestID else {
+            throw AutoWiFiWireError.invalidMessage
+        }
+        switch state {
+        case .received, .connecting:
+            return .pending
+        case .connected:
+            return .connected
+        case .failed:
+            guard let error else { throw AutoWiFiWireError.invalidMessage }
+            return .failed(error)
+        }
+    }
+}
+
 public enum AutoWiFiFrameCodec {
     public static func payload<T: Encodable>(for message: T) throws -> Data {
         let encoder = JSONEncoder()

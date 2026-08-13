@@ -429,6 +429,11 @@ Acceptance:
 
 ### L3 — Implement the direct NetworkManager D-Bus adapter
 
+Status: **complete in code; controlled-AP hardware acceptance pending**. The
+adapter resolves a disconnected Wi-Fi device, refuses to replace active Wi-Fi,
+uses `AddAndActivateConnection2` with `persist=memory`, and polls the returned
+active connection without exposing credentials in logs or process arguments.
+
 Deliverables:
 
 - Resolve the target Wi-Fi device from NetworkManager properties.
@@ -446,6 +451,11 @@ Acceptance:
 - A bad password returns generic `failed`; it does not crash or loop forever.
 
 ### L4 — Join Wi-Fi and return end-to-end status
+
+Status: **complete in code; controlled-AP hardware acceptance pending**. The
+BLE path now emits `received`, hands the validated credential to the
+NetworkManager adapter, then emits `connecting` and terminal `connected` or a
+generic `failed`. Replayed request IDs do not start duplicate activations.
 
 Deliverables:
 
@@ -524,7 +534,24 @@ Acceptance:
 
 ## Operations and packaging
 
+### M0 — Multiple independently authorized Sparks
+
+Status: **implemented in code; two-device acceptance pending**.
+
+- [x] Restore and display every AccessorySetupKit accessory instead of only the first.
+- [x] Select any subset, with new Sparks selected by default and refresh-safe choices.
+- [x] Request Apple's sharing policy sequentially for each selected Spark.
+- [x] Request the current network manually for each selected Spark.
+- [x] Keep BLE, sharing, removal, and errors independent per Bluetooth identifier.
+- [x] Run one provider and credential queue per restored accessory in the extension.
+- [ ] Complete the two-physical-Spark automatic-sharing acceptance test.
+
 ### O0 — Install as a systemd service
+
+Status: **implemented**. `packaging/autowifi-setupd.service` starts after BlueZ
+and NetworkManager, restarts on failure, and runs the installed modules from
+`/opt/autowifi`. `scripts/install_spark.sh` installs and enables it without
+changing active NetworkManager connections or BlueZ bond storage.
 
 Deliverables:
 
@@ -585,7 +612,6 @@ Acceptance:
   promise generic replay.
 - Add WPA-Enterprise only with a dedicated credential and certificate threat
   model.
-- Pair a second Spark directly and repeat the complete authorization flow.
 - Alternatively route Spark 2 through Spark 1 without forwarding Apple's
   credential payload.
 - Prepare TestFlight/App Store distribution only after confirming entitlement
