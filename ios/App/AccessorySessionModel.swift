@@ -180,8 +180,7 @@ final class AccessorySessionModel: ObservableObject {
             )
             let removalTransport = SparkBLEPingTransport(
                 identifier: identifier,
-                forgetFrame: frame,
-                requestID: requestID
+                operation: .forget(frame: frame, requestID: requestID)
             ) { [weak self] transportState in
                 DispatchQueue.main.async {
                     guard let self, self.sparks[id: identifier]?.isRemoving == true else { return }
@@ -283,15 +282,7 @@ final class AccessorySessionModel: ObservableObject {
                 let controller = try await WINetworkSharingController(for: accessory)
                 sharingControllers[identifier] = controller
                 let authorization = try await controller.requestAuthorization()
-                updateSpark(identifier) {
-                    switch authorization {
-                    case .undetermined: $0.wiFiSharingState = .undetermined
-                    case .denied: $0.wiFiSharingState = .denied
-                    case .askToShare: $0.wiFiSharingState = .askToShare
-                    case .automatic: $0.wiFiSharingState = .automatic
-                    @unknown default: $0.wiFiSharingState = .failed(code: "authorization-state")
-                    }
-                }
+                updateAuthorization(identifier, authorization)
             } catch {
                 updateSpark(identifier) {
                     $0.wiFiSharingState = .failed(code: Self.sharingErrorCode(error))
@@ -384,7 +375,7 @@ final class AccessorySessionModel: ObservableObject {
             sharingConnectionContinuations[identifier] = continuation
             let transport = SparkBLEPingTransport(
                 identifier: identifier,
-                holdConnectionWhenReady: true
+                operation: .holdConnection
             ) { [weak self] transportState in
                 DispatchQueue.main.async {
                     guard let self else { return }
@@ -510,38 +501,12 @@ final class AccessorySessionModel: ObservableObject {
 
     private static func sharingErrorCode(_ error: Error, prefix: String? = nil) -> String {
         let code: String
-        if let error = error as? WINetworkSharingError {
-            code = wiFiSharingErrorCode(error)
-        } else if case SharingConnectionError.failed(let transportCode) = error {
+        if case SharingConnectionError.failed(let transportCode) = error {
             code = "transport-\(transportCode)"
         } else {
-            let diagnostic = error as NSError
-            let domain = diagnostic.domain
-                .lowercased()
-                .replacingOccurrences(of: "[^a-z0-9.-]", with: "-", options: .regularExpression)
-            code = "\(domain)-\(diagnostic.code)"
+            code = autoWiFiSharingErrorCode(error)
         }
         return prefix.map { "\($0)-\(code)" } ?? code
-    }
-
-    private static func wiFiSharingErrorCode(_ error: WINetworkSharingError) -> String {
-        switch error {
-        case .error: "error"
-        case .timeout: "timeout"
-        case .communicationFailure: "communication-failure"
-        case .wifiNetworkSharingUnsupported: "unsupported"
-        case .appNotPermitted: "app-not-permitted"
-        case .appNotInForeground: "app-not-foreground"
-        case .accessoryTransportNotSecured: "accessory-transport-not-secured"
-        case .accessoryNotConfigured: "accessory-not-configured"
-        case .accessoryNotAuthorized: "accessory-not-authorized"
-        case .accessoryNotConnected: "accessory-not-connected"
-        case .noAvailableNetworks: "no-networks"
-        case .tooManyRequests: "too-many-requests"
-        case .noAccessoryScanResponse: "no-scan-response"
-        case .noMatchingAccessoryScanRequest: "no-matching-scan-request"
-        @unknown default: "unknown"
-        }
     }
 }
 

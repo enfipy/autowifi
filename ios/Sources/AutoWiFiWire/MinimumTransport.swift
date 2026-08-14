@@ -9,6 +9,35 @@ private let networkSharingLogger = Logger(
 )
 
 @available(iOS 26.2, *)
+func autoWiFiSharingErrorCode(_ error: Error) -> String {
+    if let error = error as? WINetworkSharingError {
+        return switch error {
+        case .error: "error"
+        case .timeout: "timeout"
+        case .communicationFailure: "communication-failure"
+        case .wifiNetworkSharingUnsupported: "unsupported"
+        case .appNotPermitted: "app-not-permitted"
+        case .appNotInForeground: "app-not-foreground"
+        case .accessoryTransportNotSecured: "accessory-transport-not-secured"
+        case .accessoryNotConfigured: "accessory-not-configured"
+        case .accessoryNotAuthorized: "accessory-not-authorized"
+        case .accessoryNotConnected: "accessory-not-connected"
+        case .noAvailableNetworks: "no-networks"
+        case .tooManyRequests: "too-many-requests"
+        case .noAccessoryScanResponse: "no-scan-response"
+        case .noMatchingAccessoryScanRequest: "no-matching-scan-request"
+        @unknown default: "unknown"
+        }
+    }
+
+    let diagnostic = error as NSError
+    let domain = diagnostic.domain
+        .lowercased()
+        .replacingOccurrences(of: "[^a-z0-9.-]", with: "-", options: .regularExpression)
+    return "\(domain)-\(diagnostic.code)"
+}
+
+@available(iOS 26.2, *)
 enum AutoWiFiNetworkMappingError: Error {
     case unsupportedSecurity
     case unsupportedCredential
@@ -107,7 +136,7 @@ final class MinimumNetworkEventForwarder {
                             _ = try await provider.presentAskToShareUI(scanProvider: nil)
                         } catch {
                             networkSharingLogger.error(
-                                "Sharing UI unavailable: \(Self.errorCode(error), privacy: .public)"
+                                "Sharing UI unavailable: \(autoWiFiSharingErrorCode(error), privacy: .public)"
                             )
                         }
                     }
@@ -134,7 +163,7 @@ final class MinimumNetworkEventForwarder {
             } catch {
                 // Never log the event, network description, or encoded payload.
                 networkSharingLogger.error(
-                    "Sharing provider failed: \(Self.errorCode(error), privacy: .public)"
+                    "Sharing provider failed: \(autoWiFiSharingErrorCode(error), privacy: .public)"
                 )
                 return
             }
@@ -144,29 +173,5 @@ final class MinimumNetworkEventForwarder {
     func stop() {
         task?.cancel()
         task = nil
-    }
-
-    private static func errorCode(_ error: Error) -> String {
-        guard let error = error as? WINetworkSharingError else {
-            let diagnostic = error as NSError
-            return "\(diagnostic.domain)-\(diagnostic.code)"
-        }
-        return switch error {
-        case .error: "error"
-        case .timeout: "timeout"
-        case .communicationFailure: "communication-failure"
-        case .wifiNetworkSharingUnsupported: "unsupported"
-        case .appNotPermitted: "app-not-permitted"
-        case .appNotInForeground: "app-not-foreground"
-        case .accessoryTransportNotSecured: "accessory-transport-not-secured"
-        case .accessoryNotConfigured: "accessory-not-configured"
-        case .accessoryNotAuthorized: "accessory-not-authorized"
-        case .accessoryNotConnected: "accessory-not-connected"
-        case .noAvailableNetworks: "no-networks"
-        case .tooManyRequests: "too-many-requests"
-        case .noAccessoryScanResponse: "no-scan-response"
-        case .noMatchingAccessoryScanRequest: "no-matching-scan-request"
-        @unknown default: "unknown"
-        }
     }
 }

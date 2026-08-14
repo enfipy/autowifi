@@ -4,10 +4,44 @@ import Foundation
 /// Encrypted GATT transport for an AccessorySetupKit-authorized accessory.
 /// Credential success means NetworkManager reported an activated connection.
 final class SparkBLEPingTransport: NSObject {
-    private enum ExpectedResponse: Equatable {
+    fileprivate enum ExpectedResponse: Equatable {
         case pong
         case credentialConnected
         case forgetReady
+    }
+
+    enum Operation {
+        case ping
+        case holdConnection
+        case credentials(frame: Data, requestID: UUID)
+        case forget(frame: Data, requestID: UUID)
+
+        fileprivate var frame: Data? {
+            switch self {
+            case .ping, .holdConnection: nil
+            case .credentials(let frame, _), .forget(let frame, _): frame
+            }
+        }
+
+        fileprivate var requestID: UUID? {
+            switch self {
+            case .ping, .holdConnection: nil
+            case .credentials(_, let requestID), .forget(_, let requestID): requestID
+            }
+        }
+
+        fileprivate var expectedResponse: ExpectedResponse {
+            switch self {
+            case .ping, .holdConnection: .pong
+            case .credentials: .credentialConnected
+            case .forget: .forgetReady
+            }
+        }
+
+        fileprivate var holdsConnection: Bool {
+            if case .holdConnection = self { return true }
+            return false
+        }
     }
 
     enum State: Equatable {
@@ -57,11 +91,8 @@ final class SparkBLEPingTransport: NSObject {
 
     private let identifier: UUID
     private let restoreIdentifier: String?
+    private let operation: Operation
     private let update: (State) -> Void
-    private let configuredFrame: Data?
-    private let configuredRequestID: UUID?
-    private let expectedResponse: ExpectedResponse
-    private let holdConnectionWhenReady: Bool
     private var central: CBCentralManager?
     private var peripheral: CBPeripheral?
     private var credentialRX: CBCharacteristic?
@@ -76,67 +107,14 @@ final class SparkBLEPingTransport: NSObject {
 
     init(
         identifier: UUID,
+        operation: Operation = .ping,
         restoreIdentifier: String? = nil,
         update: @escaping (State) -> Void
     ) {
         self.identifier = identifier
         self.restoreIdentifier = restoreIdentifier
+        self.operation = operation
         self.update = update
-        configuredFrame = nil
-        configuredRequestID = nil
-        expectedResponse = .pong
-        holdConnectionWhenReady = false
-        super.init()
-    }
-
-    /// Establishes and retains an encrypted GATT connection without sending a protocol frame.
-    /// Wi-Fi Infrastructure only shares with a currently connected accessory, so the container
-    /// app uses this mode as a short-lived lease while `askToShare()` wakes the extension.
-    init(
-        identifier: UUID,
-        holdConnectionWhenReady: Bool,
-        update: @escaping (State) -> Void
-    ) {
-        self.identifier = identifier
-        restoreIdentifier = nil
-        self.update = update
-        configuredFrame = nil
-        configuredRequestID = nil
-        expectedResponse = .pong
-        self.holdConnectionWhenReady = holdConnectionWhenReady
-        super.init()
-    }
-
-    init(
-        identifier: UUID,
-        credentialFrame: Data,
-        requestID: UUID,
-        restoreIdentifier: String? = nil,
-        update: @escaping (State) -> Void
-    ) {
-        self.identifier = identifier
-        self.restoreIdentifier = restoreIdentifier
-        self.update = update
-        configuredFrame = credentialFrame
-        configuredRequestID = requestID
-        expectedResponse = .credentialConnected
-        holdConnectionWhenReady = false
-        super.init()
-    }
-
-    init(
-        identifier: UUID,
-        forgetFrame: Data,
-        requestID: UUID,
-        update: @escaping (State) -> Void
-    ) {
-        self.identifier = identifier
-        restoreIdentifier = nil
-        self.update = update
-        configuredFrame = forgetFrame
-        configuredRequestID = requestID
-        expectedResponse = .forgetReady
-        holdConnectionWhenReady = false
         super.init()
     }
 
@@ -208,7 +186,7 @@ final class SparkBLEPingTransport: NSObject {
             self?.fail(code)
         }
         timeout = work
-        let interval = expectedResponse == .credentialConnected
+        let interval = operation.expectedResponse == .credentialConnected
             ? Self.networkActivationTimeout
             : Self.attemptTimeout
         DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: work)
@@ -234,8 +212,8 @@ final class SparkBLEPingTransport: NSObject {
             return
         }
         do {
-            let requestID = configuredRequestID ?? UUID()
-            let frame = try configuredFrame
+            let requestID = operation.requestID ?? UUID()
+            let frame = try operation.frame
                 ?? AutoWiFiFrameCodec.frame(AutoWiFiPingMessage(requestID: requestID))
             let chunkSize = max(1, peripheral.maximumWriteValueLength(for: .withResponse))
             pendingChunks = stride(from: 0, to: frame.count, by: chunkSize).map { offset in
@@ -258,7 +236,7 @@ final class SparkBLEPingTransport: NSObject {
     private func consumeNotification(_ data: Data) {
         do {
             for payload in try decoder.feed(data) {
-                switch expectedResponse {
+                switch operation.expectedResponse {
                 case .pong:
                     let pong = try JSONDecoder().decode(AutoWiFiPongMessage.self, from: payload)
                     guard pong.requestID == requestID else {
@@ -433,7 +411,7 @@ extension SparkBLEPingTransport: CBPeripheralDelegate {
             return
         }
         publish(.ready)
-        if holdConnectionWhenReady {
+        if operation.holdsConnection {
             timeout?.cancel()
             timeout = nil
             return

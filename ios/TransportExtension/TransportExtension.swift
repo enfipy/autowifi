@@ -31,7 +31,6 @@ struct TransportExtension: AccessoryTransportAppExtension {
         private let transportSession: AccessoryTransportSession
         private let accessorySession = ASAccessorySession()
         private var pipeline: AccessoryPipeline?
-        private var pipelineIdentifier: UUID?
         private var invalidated = false
 
         init(session: AccessoryTransportSession) {
@@ -84,10 +83,9 @@ struct TransportExtension: AccessoryTransportAppExtension {
                   let identifier = accessory.bluetoothIdentifier else {
                 pipeline?.stop()
                 pipeline = nil
-                pipelineIdentifier = nil
                 return
             }
-            guard pipelineIdentifier != identifier else { return }
+            guard pipeline?.identifier != identifier else { return }
 
             pipeline?.stop()
             let restoreIdentifier: String?
@@ -102,7 +100,6 @@ struct TransportExtension: AccessoryTransportAppExtension {
                 restoreIdentifier: restoreIdentifier
             )
             pipeline = next
-            pipelineIdentifier = identifier
             next.start()
             logger.info("Extension serving its accessory")
         }
@@ -112,7 +109,6 @@ struct TransportExtension: AccessoryTransportAppExtension {
             invalidated = true
             pipeline?.stop()
             pipeline = nil
-            pipelineIdentifier = nil
             accessorySession.invalidate()
             logger.info("Extension transport session invalidated")
         }
@@ -120,7 +116,7 @@ struct TransportExtension: AccessoryTransportAppExtension {
 
     final class AccessoryPipeline: @unchecked Sendable {
         private let accessory: ASAccessory
-        private let identifier: UUID
+        fileprivate let identifier: UUID
         private let restoreIdentifier: String?
         private var pingTransport: SparkBLEPingTransport?
         private var credentialTransport: SparkBLEPingTransport?
@@ -191,8 +187,7 @@ struct TransportExtension: AccessoryTransportAppExtension {
             let next = pendingCredentials.removeFirst()
             let transport = SparkBLEPingTransport(
                 identifier: identifier,
-                credentialFrame: next.frame,
-                requestID: next.requestID,
+                operation: .credentials(frame: next.frame, requestID: next.requestID),
                 restoreIdentifier: restoreIdentifier
             ) { [weak self] state in
                 self?.handleCredentialState(state)
