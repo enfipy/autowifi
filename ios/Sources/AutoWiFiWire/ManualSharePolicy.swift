@@ -24,6 +24,9 @@ public enum AutoWiFiManualSharePolicy {
         case .askToShare:
             .askToShare
         case .automatic:
+            // iOS delivers newly joined networks through the transport extension in Automatic
+            // mode. Calling askToShare() here is not a replay API and can return a generic error
+            // even while automatic delivery succeeds.
             .alreadyAutomatic
         case .denied:
             .authorizationDenied

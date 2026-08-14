@@ -56,6 +56,7 @@ final class SparkBLEPingTransport: NSObject {
     private static let networkActivationTimeout: TimeInterval = 55
 
     private let identifier: UUID
+    private let restoreIdentifier: String?
     private let update: (State) -> Void
     private let configuredFrame: Data?
     private let configuredRequestID: UUID?
@@ -73,8 +74,13 @@ final class SparkBLEPingTransport: NSObject {
     private var timeout: DispatchWorkItem?
     private var completed = false
 
-    init(identifier: UUID, update: @escaping (State) -> Void) {
+    init(
+        identifier: UUID,
+        restoreIdentifier: String? = nil,
+        update: @escaping (State) -> Void
+    ) {
         self.identifier = identifier
+        self.restoreIdentifier = restoreIdentifier
         self.update = update
         configuredFrame = nil
         configuredRequestID = nil
@@ -92,6 +98,7 @@ final class SparkBLEPingTransport: NSObject {
         update: @escaping (State) -> Void
     ) {
         self.identifier = identifier
+        restoreIdentifier = nil
         self.update = update
         configuredFrame = nil
         configuredRequestID = nil
@@ -104,9 +111,11 @@ final class SparkBLEPingTransport: NSObject {
         identifier: UUID,
         credentialFrame: Data,
         requestID: UUID,
+        restoreIdentifier: String? = nil,
         update: @escaping (State) -> Void
     ) {
         self.identifier = identifier
+        self.restoreIdentifier = restoreIdentifier
         self.update = update
         configuredFrame = credentialFrame
         configuredRequestID = requestID
@@ -122,6 +131,7 @@ final class SparkBLEPingTransport: NSObject {
         update: @escaping (State) -> Void
     ) {
         self.identifier = identifier
+        restoreIdentifier = nil
         self.update = update
         configuredFrame = forgetFrame
         configuredRequestID = requestID
@@ -134,7 +144,10 @@ final class SparkBLEPingTransport: NSObject {
         guard central == nil else { return }
         publish(.disconnected)
         scheduleTimeout(code: "bluetooth-unavailable")
-        central = CBCentralManager(delegate: self, queue: .main)
+        let options = restoreIdentifier.map {
+            [CBCentralManagerOptionRestoreIdentifierKey: $0]
+        }
+        central = CBCentralManager(delegate: self, queue: .main, options: options)
     }
 
     func cancel() {
@@ -313,6 +326,23 @@ final class SparkBLEPingTransport: NSObject {
 }
 
 extension SparkBLEPingTransport: CBCentralManagerDelegate {
+    func centralManager(
+        _ central: CBCentralManager,
+        willRestoreState dict: [String: Any]
+    ) {
+        guard !completed,
+              let peripherals = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral],
+              let restored = peripherals.first(where: { $0.identifier == identifier }) else {
+            return
+        }
+        peripheral = restored
+        restored.delegate = self
+        if restored.state == .connected {
+            publish(.discovering)
+            restored.discoverServices([Self.serviceUUID])
+        }
+    }
+
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         guard !completed else { return }
         switch central.state {

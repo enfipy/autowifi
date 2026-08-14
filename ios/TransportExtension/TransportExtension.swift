@@ -1,5 +1,6 @@
 import AccessorySetupKit
 import AccessoryTransportExtension
+import ExtensionFoundation
 import Foundation
 import os
 
@@ -11,21 +12,26 @@ private let logger = Logger(
 @available(iOS 26.2, *)
 @main
 struct TransportExtension: AccessoryTransportAppExtension {
+    @AppExtensionPoint.Bind
+    static var boundExtensionPoint: AppExtensionPoint {
+        AppExtensionPoint.Identifier("com.apple.accessory-transport-extension")
+    }
+
     func accept(
         sessionRequest: AccessoryTransportSession.Request
     ) -> AccessoryTransportSession.Request.Decision {
-        sessionRequest.accept {
+        return sessionRequest.accept {
             SessionHandler(session: sessionRequest.session)
         }
     }
 
-    /// One extension session can serve every accessory configured for this app. Each Spark
-    /// gets an isolated pipeline so its BLE availability and credential acknowledgements
-    /// cannot block or cancel another Spark.
+    /// iOS creates an accessory-scoped extension session for each Spark. Keeping one pipeline
+    /// per session also keeps CoreBluetooth state restoration isolated between Sparks.
     final class SessionHandler: AccessoryTransportSession.EventHandler, @unchecked Sendable {
         private let transportSession: AccessoryTransportSession
         private let accessorySession = ASAccessorySession()
-        private var pipelines: [UUID: AccessoryPipeline] = [:]
+        private var pipeline: AccessoryPipeline?
+        private var pipelineIdentifier: UUID?
         private var invalidated = false
 
         init(session: AccessoryTransportSession) {
@@ -59,13 +65,8 @@ struct TransportExtension: AccessoryTransportAppExtension {
 
         private func handleAccessoryEvent(_ event: ASAccessoryEvent) {
             switch event.eventType {
-            case .activated, .accessoryAdded, .accessoryRemoved:
-                reconcilePipelines()
-            case .accessoryChanged:
-                if let identifier = event.accessory?.bluetoothIdentifier {
-                    pipelines.removeValue(forKey: identifier)?.stop()
-                }
-                reconcilePipelines()
+            case .activated, .accessoryAdded, .accessoryChanged, .accessoryRemoved:
+                reconcilePipeline()
             case .invalidated:
                 invalidate()
             default:
@@ -73,30 +74,45 @@ struct TransportExtension: AccessoryTransportAppExtension {
             }
         }
 
-        private func reconcilePipelines() {
+        private func reconcilePipeline() {
             guard !invalidated else { return }
-            let available = accessorySession.accessories.compactMap { accessory -> (UUID, ASAccessory)? in
-                guard let identifier = accessory.bluetoothIdentifier else { return nil }
-                return (identifier, accessory)
+            // Apple scopes each transport-extension session to one accessory and its sample
+            // resolves that accessory as the first item in this process's ASK session. Starting
+            // one central manager per item here would reuse the system restoration identifier
+            // and leave every manager unauthorized in the extension sandbox.
+            guard let accessory = accessorySession.accessories.first,
+                  let identifier = accessory.bluetoothIdentifier else {
+                pipeline?.stop()
+                pipeline = nil
+                pipelineIdentifier = nil
+                return
             }
-            let availableIDs = Set(available.map(\.0))
+            guard pipelineIdentifier != identifier else { return }
 
-            for identifier in Set(pipelines.keys).subtracting(availableIDs) {
-                pipelines.removeValue(forKey: identifier)?.stop()
+            pipeline?.stop()
+            let restoreIdentifier: String?
+            if #available(iOS 26.5, *) {
+                restoreIdentifier = transportSession.transportStateRestoreIdentifier
+            } else {
+                restoreIdentifier = nil
             }
-            for (identifier, accessory) in available where pipelines[identifier] == nil {
-                let pipeline = AccessoryPipeline(accessory: accessory, identifier: identifier)
-                pipelines[identifier] = pipeline
-                pipeline.start()
-            }
-            logger.info("Extension serving \(self.pipelines.count, privacy: .public) accessories")
+            let next = AccessoryPipeline(
+                accessory: accessory,
+                identifier: identifier,
+                restoreIdentifier: restoreIdentifier
+            )
+            pipeline = next
+            pipelineIdentifier = identifier
+            next.start()
+            logger.info("Extension serving its accessory")
         }
 
         private func invalidate() {
             guard !invalidated else { return }
             invalidated = true
-            for pipeline in pipelines.values { pipeline.stop() }
-            pipelines.removeAll(keepingCapacity: false)
+            pipeline?.stop()
+            pipeline = nil
+            pipelineIdentifier = nil
             accessorySession.invalidate()
             logger.info("Extension transport session invalidated")
         }
@@ -105,6 +121,7 @@ struct TransportExtension: AccessoryTransportAppExtension {
     final class AccessoryPipeline: @unchecked Sendable {
         private let accessory: ASAccessory
         private let identifier: UUID
+        private let restoreIdentifier: String?
         private var pingTransport: SparkBLEPingTransport?
         private var credentialTransport: SparkBLEPingTransport?
         private var networkForwarder: MinimumNetworkEventForwarder?
@@ -112,14 +129,18 @@ struct TransportExtension: AccessoryTransportAppExtension {
         private var retry: DispatchWorkItem?
         private var stopped = false
 
-        init(accessory: ASAccessory, identifier: UUID) {
+        init(accessory: ASAccessory, identifier: UUID, restoreIdentifier: String?) {
             self.accessory = accessory
             self.identifier = identifier
+            self.restoreIdentifier = restoreIdentifier
         }
 
         func start() {
             guard pingTransport == nil, networkForwarder == nil, !stopped else { return }
-            let transport = SparkBLEPingTransport(identifier: identifier) { [weak self] state in
+            let transport = SparkBLEPingTransport(
+                identifier: identifier,
+                restoreIdentifier: restoreIdentifier
+            ) { [weak self] state in
                 self?.handlePingState(state)
             }
             pingTransport = transport
@@ -132,6 +153,9 @@ struct TransportExtension: AccessoryTransportAppExtension {
                 logger.info("Extension encrypted transport ping succeeded")
                 DispatchQueue.main.async { [weak self] in
                     guard let self, !self.stopped else { return }
+                    // A restoration identifier belongs to one live CBCentralManager. Release
+                    // the completed probe before credential delivery reuses that identifier.
+                    self.pingTransport?.cancel()
                     self.pingTransport = nil
                     self.startNetworkForwarder()
                 }
@@ -168,7 +192,8 @@ struct TransportExtension: AccessoryTransportAppExtension {
             let transport = SparkBLEPingTransport(
                 identifier: identifier,
                 credentialFrame: next.frame,
-                requestID: next.requestID
+                requestID: next.requestID,
+                restoreIdentifier: restoreIdentifier
             ) { [weak self] state in
                 self?.handleCredentialState(state)
             }
