@@ -220,7 +220,7 @@ func decodesSharedStatusFixtures(name: String) throws {
     #expect(selection.selected.isEmpty)
 }
 
-@Test func manualSharingAuthorizesBeforeAskingAndSkipsAutomaticMode() {
+@Test func manualSharingAuthorizesBeforeAskingIncludingAutomaticMode() {
     #expect(
         AutoWiFiManualSharePolicy.action(for: .notRequested)
             == .requestAuthorization
@@ -231,7 +231,7 @@ func decodesSharedStatusFixtures(name: String) throws {
     )
     #expect(
         AutoWiFiManualSharePolicy.action(for: .automatic)
-            == .alreadyAutomatic
+            == .askToShare
     )
     #expect(
         AutoWiFiManualSharePolicy.action(for: .denied)
