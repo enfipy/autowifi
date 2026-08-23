@@ -12,7 +12,6 @@ public enum AutoWiFiSharingAuthorization: Equatable, Sendable {
 public enum AutoWiFiManualShareAction: Equatable, Sendable {
     case requestAuthorization
     case askToShare
-    case alreadyAutomatic
     case authorizationDenied
 }
 
@@ -24,10 +23,10 @@ public enum AutoWiFiManualSharePolicy {
         case .askToShare:
             .askToShare
         case .automatic:
-            // iOS delivers newly joined networks through the transport extension in Automatic
-            // mode. Calling askToShare() here is not a replay API and can return a generic error
-            // even while automatic delivery succeeds.
-            .alreadyAutomatic
+            // Automatic mode covers future network joins without prompting. The explicit
+            // container-app action still needs to signal the extension so that an already-joined
+            // current network is delivered to the accessory.
+            .askToShare
         case .denied:
             .authorizationDenied
         case .notRequested, .undetermined, .failed:

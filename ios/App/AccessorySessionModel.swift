@@ -335,8 +335,6 @@ final class AccessorySessionModel: ObservableObject {
                         @unknown default: $0.manualShareState = .failed(code: "share-state")
                         }
                     }
-                case .alreadyAutomatic:
-                    updateSpark(identifier) { $0.manualShareState = .automatic }
                 case .authorizationDenied:
                     updateSpark(identifier) { $0.manualShareState = .denied }
                 case .requestAuthorization:
