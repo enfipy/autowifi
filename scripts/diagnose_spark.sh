@@ -3,8 +3,21 @@
 
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$script_dir/lib/spark_ssh.sh"
+spark_ssh() {
+  local spark_host="${AUTOWIFI_SPARK_HOST:-}"
+
+  if [[ -z "$spark_host" ]]; then
+    printf '%s\n' \
+      'Set AUTOWIFI_SPARK_HOST to an SSH target (for example, user@spark-host).' >&2
+    return 64
+  fi
+  if [[ -n "${AUTOWIFI_SPARK_HOSTNAME:-}" ]]; then
+    command ssh -o "HostName=$AUTOWIFI_SPARK_HOSTNAME" "$spark_host" "$@"
+    return
+  fi
+
+  command ssh "$spark_host" "$@"
+}
 
 state="$(spark_ssh '
   adapter=""

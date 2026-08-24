@@ -15,7 +15,7 @@ from autowifi_protocol import (
 )
 
 
-FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 
 
 def payload(**changes):
@@ -113,7 +113,6 @@ class CredentialTests(unittest.TestCase):
             settings["802-11-wireless-security"],
             {"key-mgmt": "wpa-psk", "psk": "not-logged"},
         )
-
     def test_maps_open_without_security_block(self):
         credential = NetworkCredential.from_payload(
             payload(

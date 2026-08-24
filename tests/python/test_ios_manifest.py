@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class IOSManifestTests(unittest.TestCase):
@@ -33,11 +33,6 @@ class IOSManifestTests(unittest.TestCase):
         bluetooth = json.loads(
             (ROOT / "config" / "autowifi.json").read_text()
         )["bluetooth"]
-        legacy_discovery_uuids = {
-            uuid
-            for uuids in bluetooth["legacyProductDiscoveryUUIDs"].values()
-            for uuid in uuids
-        }
         with (ROOT / "ios/App/Info.plist").open("rb") as stream:
             manifest = plistlib.load(stream)
 
@@ -48,7 +43,6 @@ class IOSManifestTests(unittest.TestCase):
             {
                 bluetooth["serviceUUID"],
                 *bluetooth["productDiscoveryUUIDs"].values(),
-                *legacy_discovery_uuids,
             },
         )
 
@@ -64,7 +58,6 @@ class IOSManifestTests(unittest.TestCase):
 
     def test_picker_avoids_fatal_undeclared_manufacturer_filter(self):
         source = (ROOT / "ios/App/AccessoryCatalog.swift").read_text()
-        self.assertIn("legacyGigabyteDiscoveryUUIDs.map", source)
         self.assertNotIn("bluetoothCompanyIdentifier", source)
         self.assertNotIn("bluetoothManufacturerDataBlob", source)
 

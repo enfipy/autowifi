@@ -3,6 +3,7 @@ import unittest
 from autowifi_protocol import NetworkCredential
 from network_manager import NetworkManagerAdapter
 from network_manager_dbus import DBusActivationBackend
+from network_manager_dbus import ACTIVATION_PERSISTENCE
 
 
 class FakeActivationBackend:
@@ -126,6 +127,9 @@ class NetworkManagerAdapterTests(unittest.TestCase):
 
 
 class DBusActivationBackendTests(unittest.TestCase):
+    def test_successful_profiles_are_persistent_across_reboot(self):
+        self.assertEqual(ACTIVATION_PERSISTENCE, "disk")
+
     def test_existing_wifi_connection_is_never_replaced(self):
         port = FakeNetworkManagerPort(devices=[("/wifi0", 100)])
         backend = DBusActivationBackend(port, schedule=lambda _delay, _call: None)
@@ -151,7 +155,7 @@ class DBusActivationBackendTests(unittest.TestCase):
 
         self.assertEqual(results, ["network-manager-unavailable"])
 
-    def test_disconnected_wifi_uses_memory_profile_and_waits_for_activation(self):
+    def test_disconnected_wifi_uses_persistent_profile_and_waits_for_activation(self):
         port = FakeNetworkManagerPort(
             devices=[("/wifi0", 30)],
             active_states=[(1, False), (2, False), (2, True)],

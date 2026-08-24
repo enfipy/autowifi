@@ -32,9 +32,6 @@ private extension Data {
         "gigabyte", "nvidia", "generic",
     ])
     #expect(Set(AutoWiFiConstants.productDiscoveryUUIDs.values).count == 3)
-    #expect(AutoWiFiConstants.legacyGigabyteDiscoveryUUIDs == [
-        UUID(uuidString: "2C4691C0-AFFB-4700-90A4-A116F1B66FCC")!,
-    ])
 }
 
 @Test func swiftCredentialEncodingMatchesSharedFixture() throws {
@@ -222,19 +219,73 @@ func decodesSharedStatusFixtures(name: String) throws {
 
 @Test func manualSharingAuthorizesBeforeAskingIncludingAutomaticMode() {
     #expect(
-        AutoWiFiManualSharePolicy.action(for: .notRequested)
+        AutoWiFiSharingPolicy.action(for: .notRequested)
             == .requestAuthorization
     )
     #expect(
-        AutoWiFiManualSharePolicy.action(for: .askToShare)
+        AutoWiFiSharingPolicy.action(for: .askToShare)
             == .askToShare
     )
     #expect(
-        AutoWiFiManualSharePolicy.action(for: .automatic)
+        AutoWiFiSharingPolicy.action(for: .automatic)
             == .askToShare
     )
     #expect(
-        AutoWiFiManualSharePolicy.action(for: .denied)
+        AutoWiFiSharingPolicy.action(for: .denied)
             == .authorizationDenied
+    )
+}
+
+@Test func bridgedWiFiSharingErrorsPreserveSpecificFailureCodes() {
+    #expect(
+        AutoWiFiSharingPolicy.errorCode(
+            domain: "WiFiNetworkSharingError",
+            code: 11
+        ) == "too-many-requests"
+    )
+    #expect(
+        AutoWiFiSharingPolicy.errorCode(
+            domain: "WiFiNetworkSharingError",
+            code: 5
+        ) == "app-not-foreground"
+    )
+    #expect(
+        AutoWiFiSharingPolicy.errorCode(
+            domain: "WiFiInfrastructure.WINetworkSharingError",
+            code: 11
+        ) == "too-many-requests"
+    )
+    #expect(
+        AutoWiFiSharingPolicy.errorCode(domain: "UnrelatedError", code: 11) == nil
+    )
+}
+
+@Test func manualSharingStopsBatchForGlobalSystemFailures() {
+    #expect(
+        AutoWiFiSharingPolicy.batchAction(after: "too-many-requests")
+            == .stop
+    )
+    #expect(
+        AutoWiFiSharingPolicy.batchAction(after: "app-not-foreground")
+            == .stop
+    )
+    #expect(
+        AutoWiFiSharingPolicy.batchAction(after: "accessory-not-connected")
+            == .continue
+    )
+}
+
+@Test func oweTransitionUsesTheKnownWorkingOpenCompatibilityProfile() {
+    #expect(
+        AutoWiFiSharingPolicy.effectiveSecurityPolicies([.open, .owe])
+            == [.open]
+    )
+    #expect(
+        AutoWiFiSharingPolicy.effectiveSecurityPolicies([.owe])
+            == [.owe]
+    )
+    #expect(
+        AutoWiFiSharingPolicy.effectiveSecurityPolicies([.wpa2, .wpa3])
+            == [.wpa2, .wpa3]
     )
 }
