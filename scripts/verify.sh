@@ -6,7 +6,8 @@ task_tmp="${TMPDIR:-/tmp}/autowifi-verify"
 
 cd "$project_root"
 PYTHONDONTWRITEBYTECODE=1 python3 tools/generate_constants.py --check
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s linux -p 'test_*.py' -v
+PYTHONPATH="$project_root/linux" PYTHONDONTWRITEBYTECODE=1 \
+python3 -m unittest discover -s tests/python -p 'test_*.py' -v
 
 CLANG_MODULE_CACHE_PATH="$task_tmp/clang-cache" \
 SWIFTPM_MODULECACHE_OVERRIDE="$task_tmp/swiftpm-module-cache" \
@@ -20,4 +21,5 @@ xcrun swiftc \
     -module-cache-path "$task_tmp/ios-module-cache" \
     ios/Sources/AutoWiFiWire/GeneratedConstants.swift \
     ios/Sources/AutoWiFiWire/WireProtocol.swift \
-    ios/Sources/AutoWiFiWire/MinimumTransport.swift
+    ios/Sources/AutoWiFiWire/WiFiSharingPolicy.swift \
+    ios/Sources/AutoWiFiTransport/WiFiCredentialForwarder.swift

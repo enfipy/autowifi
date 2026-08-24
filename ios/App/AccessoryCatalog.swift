@@ -4,7 +4,7 @@ import UIKit
 
 enum AccessoryCatalog {
     static func pickerItems() -> [ASPickerDisplayItem] {
-        var items = [
+        [
             item(
                 name: "GIGABYTE AI TOP ATOM",
                 discoveryUUID: AutoWiFiConstants.productDiscoveryUUIDs["gigabyte"]!,
@@ -21,17 +21,6 @@ enum AccessoryCatalog {
                 imageName: nil
             ),
         ]
-
-        // Keep accepting the temporary UUID shipped to early Sparks. This migration
-        // entry can be removed after every daemon has been reinstalled from current source.
-        items += AutoWiFiConstants.legacyGigabyteDiscoveryUUIDs.map { discoveryUUID in
-            item(
-                name: "GIGABYTE AI TOP ATOM",
-                discoveryUUID: discoveryUUID,
-                imageName: "gigabyte-spark"
-            )
-        }
-        return items
     }
 
     private static func item(
