@@ -30,7 +30,6 @@ struct ContentView: View {
                                 SparkCard(
                                     spark: spark,
                                     toggleSelection: { model.toggleSelection(spark.id) },
-                                    testTransport: { model.testSecureTransport(spark.id) },
                                     remove: { Task { await model.removeSpark(spark.id) } },
                                     forgetOnIPhone: {
                                         Task { await model.forgetSparkOnIPhone(spark.id) }
@@ -144,7 +143,6 @@ struct ContentView: View {
 private struct SparkCard: View {
     let spark: AccessorySessionModel.Spark
     let toggleSelection: () -> Void
-    let testTransport: () -> Void
     let remove: () -> Void
     let forgetOnIPhone: () -> Void
 
@@ -169,8 +167,6 @@ private struct SparkCard: View {
             }
             .buttonStyle(.plain)
 
-            Label(spark.transportState.title, systemImage: transportIcon)
-                .foregroundStyle(transportColor)
             Label(spark.wiFiSharingState.title, systemImage: "wifi")
                 .foregroundStyle(sharingColor)
             if spark.manualShareState != .notRequested {
@@ -178,14 +174,9 @@ private struct SparkCard: View {
                     .foregroundStyle(manualShareColor)
             }
 
-            HStack {
-                Button("Test encrypted BLE", action: testTransport)
-                    .buttonStyle(.bordered)
-                    .disabled(spark.transportState.isRunning || spark.isRemoving)
-                Spacer()
-                Button(spark.isRemoving ? "Preparing…" : "Remove", role: .destructive, action: remove)
-                    .disabled(spark.isRemoving)
-            }
+            Button(spark.isRemoving ? "Preparing…" : "Remove", role: .destructive, action: remove)
+                .buttonStyle(.bordered)
+                .disabled(spark.isRemoving)
 
             if let code = spark.removalErrorCode {
                 VStack(alignment: .leading, spacing: 8) {
@@ -206,19 +197,6 @@ private struct SparkCard: View {
             RoundedRectangle(cornerRadius: 18)
                 .stroke(spark.isSelected ? Color.accentColor.opacity(0.6) : .clear, lineWidth: 1.5)
         }
-    }
-
-    private var transportIcon: String {
-        if spark.transportState.succeeded { return "checkmark.shield.fill" }
-        if case .failed = spark.transportState { return "exclamationmark.triangle.fill" }
-        if spark.transportState.isRunning { return "antenna.radiowaves.left.and.right" }
-        return "shield"
-    }
-
-    private var transportColor: Color {
-        if spark.transportState.succeeded { return .green }
-        if case .failed = spark.transportState { return .orange }
-        return .secondary
     }
 
     private var sharingColor: Color {

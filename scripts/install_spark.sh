@@ -32,21 +32,6 @@ install -m 0644 \
   "$project_root/packaging/$service_name" \
   "/etc/systemd/system/$service_name"
 
-# A passwordless user service is useful for BLE development, but a typical
-# NetworkManager PolicyKit policy reports `auth` instead of `yes` for unattended
-# activation. Take it down before the root service assumes ownership, otherwise
-# its Restart= policy could race this installer and re-register the same GATT app.
-invoking_user="${SUDO_USER:-}"
-if [[ -n "$invoking_user" && "$invoking_user" != "root" ]]; then
-  invoking_uid="$(id -u "$invoking_user")"
-  user_runtime="/run/user/$invoking_uid"
-  if [[ -S "$user_runtime/bus" ]]; then
-    runuser -u "$invoking_user" -- \
-      env XDG_RUNTIME_DIR="$user_runtime" \
-      systemctl --user disable --now "$service_name" >/dev/null 2>&1 || true
-  fi
-fi
-
 # Replace only the legacy manually launched Autowifi daemon. NetworkManager and
 # its active Wi-Fi connection are deliberately left untouched.
 if ! systemctl is-active --quiet "$service_name"; then

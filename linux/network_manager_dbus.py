@@ -14,6 +14,7 @@ ACTIVE_DEACTIVATING = 3
 ACTIVE_DEACTIVATED = 4
 POLL_MILLISECONDS = 500
 ACTIVATION_POLLS = 90
+ACTIVATION_PERSISTENCE = "disk"
 NM_SERVICE = "org.freedesktop.NetworkManager"
 NM_PATH = "/org/freedesktop/NetworkManager"
 NM_INTERFACE = NM_SERVICE
@@ -156,7 +157,7 @@ class DBusNetworkManagerPort:
     ) -> None:
         options = self.dbus.Dictionary(
             {
-                "persist": self.dbus.String("memory", variant_level=1),
+                "persist": self.dbus.String(ACTIVATION_PERSISTENCE, variant_level=1),
             },
             signature="sv",
         )

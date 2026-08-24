@@ -10,6 +10,14 @@ private let networkSharingLogger = Logger(
 
 @available(iOS 26.2, *)
 func autoWiFiSharingErrorCode(_ error: Error) -> String {
+    let diagnostic = error as NSError
+    if let bridgedCode = AutoWiFiSharingPolicy.errorCode(
+        domain: diagnostic.domain,
+        code: diagnostic.code
+    ) {
+        return bridgedCode
+    }
+
     if let error = error as? WINetworkSharingError {
         return switch error {
         case .error: "error"
@@ -30,7 +38,6 @@ func autoWiFiSharingErrorCode(_ error: Error) -> String {
         }
     }
 
-    let diagnostic = error as NSError
     let domain = diagnostic.domain
         .lowercased()
         .replacingOccurrences(of: "[^a-z0-9.-]", with: "-", options: .regularExpression)
@@ -46,7 +53,9 @@ enum AutoWiFiNetworkMappingError: Error {
 @available(iOS 26.2, *)
 extension AutoWiFiCredentialMessage {
     init(network: WINetworkSharingProvider.Network, requestID: UUID = UUID()) throws {
-        let policies = try Set(network.securityPolicy.map(Self.mapPolicy))
+        let mappedPolicies = try Set(network.securityPolicy.map(Self.mapPolicy))
+        let policies = AutoWiFiSharingPolicy
+            .effectiveSecurityPolicies(mappedPolicies)
             .sorted { $0.rawValue < $1.rawValue }
         let mappedCredential = try Self.mapCredential(network.credentials)
         try self.init(

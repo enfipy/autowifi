@@ -1,6 +1,6 @@
 import AccessorySetupKit
-import CoreBluetooth
 import Foundation
+import UIKit
 import WiFiInfrastructure
 
 @MainActor
@@ -90,7 +90,6 @@ final class AccessorySessionModel: ObservableObject {
         let id: UUID
         var name: String
         var isSelected: Bool
-        var transportState: SparkBLEPingTransport.State = .disconnected
         var wiFiSharingState: WiFiSharingState = .notRequested
         var manualShareState: ManualShareState = .notRequested
         var isRemoving = false
@@ -114,18 +113,13 @@ final class AccessorySessionModel: ObservableObject {
     private let session = ASAccessorySession()
     private var selection = SparkSelection()
     private var accessories: [UUID: ASAccessory] = [:]
-    private var transports: [UUID: SparkBLEPingTransport] = [:]
     private var removalTransports: [UUID: SparkBLEPingTransport] = [:]
     private var sharingConnectionTransports: [UUID: SparkBLEPingTransport] = [:]
     private var sharingConnectionContinuations: [UUID: CheckedContinuation<Void, any Error>] = [:]
     private var sharingControllers: [UUID: WINetworkSharingController] = [:]
-    private var automaticProbeIDs: Set<UUID> = []
     private lazy var removalRecovery = RemovalRecovery { [weak self] seconds in
         self?.removalRecoverySeconds = seconds
     }
-
-    private let shouldRunAutomaticProbe =
-        ProcessInfo.processInfo.environment["AUTOWIFI_AUTOMATIC_PROBE"] == "1"
 
     init() {
         removalRecovery.restore()
@@ -163,11 +157,8 @@ final class AccessorySessionModel: ObservableObject {
             sparks[id: identifier]?.isRemoving == false
         else { return }
 
-        transports.removeValue(forKey: identifier)?.cancel()
-        automaticProbeIDs.remove(identifier)
         removalTransports.removeValue(forKey: identifier)?.cancel()
         updateSpark(identifier) {
-            $0.transportState = .disconnected
             $0.removalErrorCode = nil
             $0.isRemoving = true
         }
@@ -230,7 +221,6 @@ final class AccessorySessionModel: ObservableObject {
     /// Keep this explicit; silently falling back could leave a real, still-present Spark bond.
     func forgetSparkOnIPhone(_ identifier: UUID) async {
         guard let accessory = accessories[identifier] else { return }
-        transports.removeValue(forKey: identifier)?.cancel()
         removalTransports.removeValue(forKey: identifier)?.cancel()
         releaseSecureConnectionForSharing(identifier)
         updateSpark(identifier) {
@@ -249,23 +239,6 @@ final class AccessorySessionModel: ObservableObject {
         }
     }
 
-    func testSecureTransport(_ identifier: UUID) {
-        guard accessories[identifier] != nil else {
-            updateSpark(identifier) { $0.transportState = .failed(code: "accessory-not-restored") }
-            return
-        }
-
-        automaticProbeIDs.insert(identifier)
-        transports.removeValue(forKey: identifier)?.cancel()
-        let transport = SparkBLEPingTransport(identifier: identifier) { [weak self] state in
-            DispatchQueue.main.async {
-                self?.updateSpark(identifier) { $0.transportState = state }
-            }
-        }
-        transports[identifier] = transport
-        transport.start()
-    }
-
     /// Request Apple's per-accessory sharing policy sequentially. System sheets must not be
     /// presented concurrently, and each selected Spark receives its own authorization.
     func requestWiFiSharingForSelection() async {
@@ -279,14 +252,17 @@ final class AccessorySessionModel: ObservableObject {
 
             updateSpark(identifier) { $0.wiFiSharingState = .requesting }
             do {
+                try await waitUntilApplicationActive()
                 let controller = try await WINetworkSharingController(for: accessory)
                 sharingControllers[identifier] = controller
                 let authorization = try await controller.requestAuthorization()
                 updateAuthorization(identifier, authorization)
             } catch {
+                let errorCode = Self.sharingErrorCode(error)
                 updateSpark(identifier) {
-                    $0.wiFiSharingState = .failed(code: Self.sharingErrorCode(error))
+                    $0.wiFiSharingState = .failed(code: errorCode)
                 }
+                if AutoWiFiSharingPolicy.batchAction(after: errorCode) == .stop { break }
             }
         }
     }
@@ -311,13 +287,14 @@ final class AccessorySessionModel: ObservableObject {
                     sharingControllers[identifier] = controller
                 }
 
-                var action = AutoWiFiManualSharePolicy.action(
+                var action = AutoWiFiSharingPolicy.action(
                     for: sharingAuthorization(of: identifier)
                 )
                 if action == .requestAuthorization {
+                    try await waitUntilApplicationActive()
                     let authorization = try await controller.requestAuthorization()
                     updateAuthorization(identifier, authorization)
-                    action = AutoWiFiManualSharePolicy.action(
+                    action = AutoWiFiSharingPolicy.action(
                         for: sharingAuthorization(of: identifier)
                     )
                 }
@@ -326,6 +303,7 @@ final class AccessorySessionModel: ObservableObject {
                 case .askToShare:
                     try await establishSecureConnectionForSharing(identifier)
                     defer { releaseSecureConnectionForSharing(identifier) }
+                    try await waitUntilApplicationActive()
                     let result = try await controller.askToShare()
                     updateSpark(identifier) {
                         switch result {
@@ -335,22 +313,39 @@ final class AccessorySessionModel: ObservableObject {
                         @unknown default: $0.manualShareState = .failed(code: "share-state")
                         }
                     }
-                case .alreadyAutomatic:
-                    updateSpark(identifier) { $0.manualShareState = .automatic }
                 case .authorizationDenied:
                     updateSpark(identifier) { $0.manualShareState = .denied }
                 case .requestAuthorization:
                     updateSpark(identifier) { $0.manualShareState = .undetermined }
                 }
             } catch {
+                let errorCode = Self.sharingErrorCode(error)
                 updateSpark(identifier) {
-                    $0.manualShareState = .failed(code: Self.sharingErrorCode(error, prefix: "share"))
+                    $0.manualShareState = .failed(code: "share-\(errorCode)")
                 }
+                if AutoWiFiSharingPolicy.batchAction(after: errorCode) == .stop { break }
             }
         }
     }
 
-    private func sharingAuthorization(of identifier: UUID) -> AutoWiFiSharingAuthorization {
+    /// System sharing UI can temporarily make the container inactive. Wait for a stable active
+    /// scene before starting the next accessory request; otherwise iOS rejects the whole request
+    /// before the transport extension can run.
+    private func waitUntilApplicationActive() async throws {
+        while true {
+            try Task.checkCancellation()
+            guard UIApplication.shared.applicationState == .active else {
+                try await Task.sleep(for: .milliseconds(100))
+                continue
+            }
+            try await Task.sleep(for: .milliseconds(250))
+            if UIApplication.shared.applicationState == .active { return }
+        }
+    }
+
+    private func sharingAuthorization(
+        of identifier: UUID
+    ) -> AutoWiFiSharingPolicy.Authorization {
         guard let state = sparks[id: identifier]?.wiFiSharingState else { return .failed }
         switch state {
         case .notRequested, .requesting: return .notRequested
@@ -470,21 +465,12 @@ final class AccessorySessionModel: ObservableObject {
         if !sparks.isEmpty, !sparks.contains(where: \.isRemoving) {
             removalRecovery.clear()
         }
-        if shouldRunAutomaticProbe {
-            for identifier in identifiers where !automaticProbeIDs.contains(identifier) {
-                DispatchQueue.main.async { [weak self] in
-                    self?.testSecureTransport(identifier)
-                }
-            }
-        }
     }
 
     private func cleanup(_ identifier: UUID) {
-        transports.removeValue(forKey: identifier)?.cancel()
         removalTransports.removeValue(forKey: identifier)?.cancel()
         releaseSecureConnectionForSharing(identifier)
         sharingControllers.removeValue(forKey: identifier)
-        automaticProbeIDs.remove(identifier)
         accessories.removeValue(forKey: identifier)
     }
 

@@ -12,10 +12,4 @@ public enum AutoWiFiConstants {
         "nvidia": UUID(uuidString: "7601AC6E-32BB-487A-8388-1F408E957CD5")!,
         "generic": UUID(uuidString: "9552502C-B98C-4D22-95A6-20C25652773D")!,
     ]
-    public static let legacyGigabyteDiscoveryUUIDs = [
-        UUID(uuidString: "2C4691C0-AFFB-4700-90A4-A116F1B66FCC")!,
-    ]
-    public static let minimumIOSVersion = "26.2"
-    public static let containerBundleID = "com.enfipy.autowifi"
-    public static let transportExtensionBundleID = "com.enfipy.autowifi.transport"
 }
